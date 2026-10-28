@@ -21,4 +21,5 @@ commit-msg*.txt
 .idea/shelf/
 .claude/settings.local.json
 coverage/
+.vitest/
 *.log
