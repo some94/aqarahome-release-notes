@@ -1,0 +1,9 @@
+{
+  // 웹 뷰어(브라우저)용. GAS 서버 타입 없이 DOM만 사용
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": []
+  },
+  "include": ["./**/*.ts", "../shared/**/*.ts"]
+}

@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p . && tsc -p test && tsc -p src/web",
     "test": "vitest run",
     "test:watch": "vitest",
     "push": "npm run build && clasp push",
@@ -19,7 +19,9 @@
   },
   "devDependencies": {
     "@types/google-apps-script": "^2.0.13",
+    "@types/node": "^26.6.5",
     "esbuild": "^0.28.2",
+    "postal-mime": "^4.1.4",
     "typescript": "^7.0.2",
     "vitest": "^5.0.5"
   }

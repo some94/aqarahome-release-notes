@@ -1,4 +1,5 @@
 {
+  // 서버(GAS) 코드용. 웹 뷰어는 src/web/tsconfig.json, 테스트는 test/tsconfig.json
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["ES2022"],
@@ -13,5 +14,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/server/**/*.ts", "src/parser/**/*.ts", "src/shared/**/*.ts"]
 }
