@@ -1,0 +1,32 @@
+Hi all,
+Version v6.3.6 completed the release approval process on July 3, 2026.
+1.1 Release Version:
+v6.3.6
+1.3 Update Notes:
+[Fix] Fixed known issues.
+Best regards,
+Isabel
+------------------------------------------------------------------
+发件人：Sample Sender<sender@example.com>
+日　期：2026年06月25日 14:03:43
+收件人：루미 정기 이슈<appupdate@aqara.kr>
+主　题：Aqara Home Version Release Notice v6.3.3-20260619
+
+Hi all,
+Version v6.3.3 has completed release approval on 2026.06.18.
+1.1 Release versions:
+Android / iOS: v6.3.3
+Google Play: v6.3.4
+Best regards
+Isabel
+------------------原始邮件 ------------------
+发件人:Sample Sender <sender@example.com>
+发送时间:04/07/26 14:22:12
+收件人:루미 정기 이슈 <appupdate@aqara.kr>
+主题:APP Version Release Notification v6.1.5-20260407
+Hi all,
+The v6.1.5 version was completed on 2026.04.03.
+1.1 Release Version:
+v6.1.5
+Best regards,
+Isabel
