@@ -1,0 +1,233 @@
+# Aqara Home 릴리즈 노트 관리 — 전체 구현 계획
+
+요구사항 원문: [SPEC.md](SPEC.md) · 프로젝트 규칙: [../CLAUDE.md](../CLAUDE.md)
+
+- 개정 1 (2026-10-28): 1차 검토 반영. 승인 3건, 수정 요청 10건. 변경 이력은 맨 아래 참고
+
+## 0. 현재 상태 (0번 완료)
+
+- Node v24.18.0 / npm 11.16.0 / git 2.45.1 / clasp 3.4.1(전역), Windows 11 + PowerShell 5.1
+- devDependencies: typescript 7, esbuild, vitest, @types/google-apps-script, @types/node, postal-mime(로컬 테스트용 .eml 파싱, GAS 번들에는 포함 안 됨)
+- clasp 로그인: donghwi@aqara.kr, Apps Script API 사용 설정 확인(push 성공)
+- 시트 "Aqara Home 릴리즈 노트": https://docs.google.com/spreadsheets/d/1fGZ60H5v5dRg0SkQ6MRGdtgXcjXlyNJFXtLoh9PNzMg/edit
+- 스크립트 편집기: https://script.google.com/d/1PPokOCm4gCseWpqH0eo3W5v86gsS_bMRbWtcvdLNqwry-jwiRCjznXMv/edit
+- 매니페스트(`src/appsscript.json`): `Asia/Seoul`, V8, 웹앱 `DOMAIN` + `USER_DEPLOYING`, Gmail 고급 서비스(v1)
+  - scope: `gmail.readonly`, `spreadsheets`, `script.container.ui`, `script.external_request`, `script.send_mail`, `script.scriptapp`, `userinfo.email`
+  - `GmailApp`은 읽기만 해도 전체 메일 권한(`https://mail.google.com/`)이 필요하므로 사용하지 않음
+  - `spreadsheets`는 `currentonly` 대신 전체 권한 사용: 웹앱·트리거 실행 때는 시트를 ID로 열어야 하는데 `currentonly`로는 안 될 수 있음
+
+## 1. 폴더 구조
+
+```
+aqarahome-release-notes/
+├─ src/
+│  ├─ appsscript.json        매니페스트 원본 (빌드 때 dist/로 복사)
+│  ├─ shared/types.ts        서버·뷰어가 같이 쓰는 데이터 타입 (Version, Item 등)
+│  ├─ parser/                ★ GAS API 없이 동작하는 순수 함수, vitest 대상
+│  │  ├─ html.ts             간이 HTML 파서. GAS에는 DOM이 없어서 직접 구현
+│  │  ├─ quote-split.ts      인용 분리. <blockquote> 기준이 1순위, 구분자 A/B는 보조
+│  │  ├─ quote-header.ts     인용 헤더에서 发件人/日期/主题 등 메타데이터 추출
+│  │  ├─ version.ts          제목·본문에서 버전 추출(v/V 모두), 채널별 버전
+│  │  ├─ sections.ts         섹션 제목 키워드 분류. 분류 안 되면 기타, 첫 문단은 개요
+│  │  ├─ items.ts            항목 분리, 중첩 목록의 부모-자식 관계, 플랫폼 접두어 분리
+│  │  ├─ status.ts           채널별 제출 상태를 한국어로 정규화
+│  │  ├─ dedupe.ts           원본 우선 선택, 이미 저장된 버전 건너뛰기
+│  │  ├─ subject-filter.ts   제목 키워드 판정 (본문을 열기 전 단계)
+│  │  ├─ ids.ts              항목 ID 생성
+│  │  └─ index.ts            parseReleaseMail(subject, html, text) → ParsedVersion[]
+│  ├─ server/                GAS에서만 도는 코드
+│  │  ├─ main.ts             GAS 진입점 모음 (onOpen, onEdit, setup, doGet …). export한 함수는 빌드 때 최상위 함수로 자동 노출
+│  │  ├─ config.ts           Script Properties를 읽고 기본값 적용
+│  │  ├─ gmail.ts            Gmail API(고급 서비스)로 검색·메타데이터·본문 읽기. 읽기 전용
+│  │  ├─ mime.ts             Gmail payload 디코딩 (base64url, 문자셋)
+│  │  ├─ sheets/             탭 스키마, 저장소(읽기·쓰기·upsert), 용어집
+│  │  ├─ translate/          Claude 호출(tool use로 JSON 스키마 강제), 프롬프트, 응답 검증, 재시도
+│  │  ├─ pipeline.ts         수집(원문 저장) → 번역 대기 버전 번역. 이어서 처리, 잠금 포함
+│  │  ├─ reparse.ts          저장된 버전 재파싱 (별도 메뉴 전용)
+│  │  ├─ backfill.ts         백필 미리보기와 실제 백필, 결과 요약
+│  │  ├─ reset.ts            테스트 데이터 초기화 (6단계 전 사용)
+│  │  ├─ triggers.ts         installTriggers(주간), 이어서 처리용 일회성 트리거 생성·삭제
+│  │  ├─ internal-import.ts  (선택) 2024년 사내 번역본 가져오기
+│  │  ├─ notify.ts           소유자 메일 알림, 챗 웹훅 자리만 마련
+│  │  ├─ menu.ts             커스텀 메뉴
+│  │  ├─ setup.ts            탭·헤더 생성만 담당. 여러 번 실행해도 안전(idempotent)
+│  │  └─ webapp.ts           doGet, getViewerData
+│  └─ web/
+│     ├─ index.html          뷰어 화면 틀
+│     ├─ client.ts           검색·필터·렌더링 (브라우저에서 실행)
+│     └─ styles.css
+├─ scripts/
+│  ├─ build.mjs              esbuild 번들 → dist/Code.js(+최상위 래퍼), dist/index.html(CSS·JS 인라인)
+│  ├─ deploy.mjs             build → push → 새 버전 생성 → deploy.config.json의 deployment ID 갱신
+│  └─ preview-backfill.mjs   로컬 미리보기: fixtures/private/*.eml을 파싱해서 결과 출력
+├─ deploy.config.json        { "deploymentId": "…" } — 비밀값 아님, git 커밋 (7단계에서 생성)
+├─ test/                     *.test.ts
+├─ fixtures/sample/          구조만 살린 가공 샘플 (커밋함)
+├─ fixtures/private/         실제 메일 원문 (git 제외)
+└─ docs/SPEC.md, docs/PLAN.md, CLAUDE.md, README.md
+```
+
+## 2. 핵심 설계 결정
+
+### 빌드
+- esbuild로 서버 코드(`src/server/main.ts`)를 IIFE 하나(`var App = …`)로 묶음
+- GAS는 최상위 함수만 인식하므로, 빌드 스크립트가 `main.ts`에서 export한 함수마다 `function setup(){ return App.setup.apply(this, arguments) }` 형태의 래퍼를 자동으로 붙임
+- 웹 뷰어는 `HtmlService` 한 파일(dist/index.html)로 CSS·JS를 인라인
+- 빌드할 때마다 `dist/`를 비우고 새로 만듦
+
+### 배포 URL 고정
+- 최초 1회만 `clasp create-deployment`를 실행하고, 받은 ID를 **`deploy.config.json`**(git 커밋)에 저장. deployment ID는 비밀값이 아님(웹앱 URL에 그대로 노출되고 접근은 `DOMAIN`으로 제한)
+- 이후 `npm run deploy`는 항상 같은 ID에 새 버전을 올림
+- `deploy.config.json`이 없거나 ID가 비어 있으면 deploy 스크립트는 새 배포를 만들지 않고 중단
+
+### 처리 상태 (버전 탭)
+| 상태 | 의미 |
+|---|---|
+| `번역 대기` | 원문(항목 분리까지)만 저장됨. 다음 파이프라인 실행에서 번역 대상 |
+| `정상` | 번역·검증 통과 |
+| `검수 필요` | 번역 검증 실패(재시도 포함) 또는 파싱 경고. 원문은 저장됨 |
+| `오류` | 파싱·저장 중 예외. 오류 내용은 실행 로그에 기록 |
+
+### 파이프라인 (한 번 실행)
+1. **수집 단계:** 새 메일 조회 → 파싱 → 버전·항목 원문 저장, 상태 `번역 대기`
+2. **번역 단계:** 상태가 `번역 대기`인 버전을 오래된 것부터 번역 → `정상` 또는 `검수 필요`
+- 두 단계가 분리되어 있으므로 4단계에서 원문만 저장한 버전도 5단계 이후 실행에서 자동으로 번역됨
+- 수집 단계가 시간 안에 끝나지 않으면 번역 단계는 다음 실행으로 넘김
+
+### 메일 선택과 본문 열기
+- `GMAIL_QUERY`(기본: 발신·수신 주소 조건, 나중에 라벨로 교체 가능)로 후보 메일 목록을 받음
+- 각 메일은 **메타데이터(제목·날짜 헤더)만** 먼저 읽고(`format: metadata`), 제목이 `SUBJECT_KEYWORDS`에 맞는 메일만 본문을 엶
+- 키워드에 맞지 않은 메일은 본문을 열지 않고 건너뜀. 미리보기에서 목록으로 보여줌
+
+### 인용 처리 순서
+1. 메일을 블록으로 분리. 인용 깊이 0인 블록이 원본
+2. 블록마다 버전 추출
+3. 전체 메일에서 버전별 후보를 모음
+4. 원본이 있으면 원본을 쓰고, 없으면 가장 이른 인용본을 쓰면서 출처를 `인용본`으로 표시. 메일 링크도 원본 메일 기준
+5. 시트에 이미 있는 버전은 제외 (자동 수집에서는 저장된 버전을 절대 다시 쓰지 않음)
+
+### 저장된 버전 재파싱 (별도 메뉴 전용)
+- 메뉴 `저장된 버전 재파싱…`에서 버전 번호를 입력받아 실행. 자동 수집·백필에서는 호출되지 않음
+- 실행 전 해당 버전 항목 중 `수정 여부 = TRUE`가 하나라도 있으면 **해당 항목 ID 목록을 경고로 보여주고 중단**(덮어쓰지 않음)
+- 수정된 항목이 없으면 원본 메일을 다시 읽어 항목을 교체하고 상태를 `번역 대기`로 되돌림
+
+### 항목 ID와 수정 여부
+- 항목 ID 형식: `v6.4.1-notes-003`, 하위 항목은 `v6.4.1-notes-003-02`. 버전+섹션+순번으로 정해지므로 재실행해도 같은 값
+- 숨김 열 2개 추가(승인됨): `기계 번역`(번역 결과 원본), `원문 언어`(en/zh/mixed)
+- 번역을 사람이 고쳤는지는 두 가지로 판단
+  - simple `onEdit`이 한국어 열이 바뀌면 `수정 여부`를 TRUE로 표시
+  - `기계 번역`과 한국어 열을 비교해서 다르면 수정된 것으로 봄. 코드로 쓴 값이나 붙여넣기처럼 `onEdit`이 놓치는 경우를 위한 보조 장치
+- 재번역할 때 수정된 항목은 건너뜀. "선택 항목 재번역"에서 수정된 항목이 선택되어 있으면 확인 창을 띄움
+
+### 이어서 처리 (6분 제한 대비)
+- 처리할 메일·버전 목록과 진행 위치를 Script Properties에 저장
+- 실행한 지 약 4.5분이 되면 멈추고, 1분 뒤 실행되는 일회성 트리거(`continueRun`)를 걸어 이어서 처리
+- **일회성 트리거는 반드시 삭제:** `continueRun`이 시작하면 가장 먼저 `continueRun` 핸들러 트리거를 모두 삭제. 새로 걸기 전에도 기존 것을 삭제해서 항상 최대 1개만 존재
+- `설정 점검` 메뉴에서 핸들러별 트리거 개수를 표시해서 누적 여부를 확인할 수 있게 함
+- `LockService`로 동시에 두 번 실행되는 것을 막음
+
+### setup()과 트리거 설치 분리
+- `setup()`: 탭·헤더·숨김 열·용어집 초기값만 생성. 트리거는 건드리지 않음
+- `installTriggers()`: 주간 수집 트리거 설치. 같은 핸들러의 기존 트리거를 지운 뒤 1개만 생성(idempotent). **8단계에서 실행**
+
+### 번역
+- 버전 단위로 처리하고, 항목을 `TRANSLATE_BATCH_SIZE`개(Script Properties, 기본 20)씩 나눠 요청
+- **5단계 첫 테스트에서 요청당 응답 시간을 측정**하고, UrlFetch 제한에 여유가 있도록(요청당 30초 이내 목표) 기본값 조정
+- **JSON 스키마 강제:** tool use로 `submit_translations` 도구 하나를 정의하고 `tool_choice`로 이 도구 호출을 강제. 입력 스키마에 `{id, ko, platform, devices[], tags[]}` 배열을 정의. 구현 직전에 최신 Anthropic 문서를 확인해서 구조화 출력을 쓸 수 있으면 그쪽을 검토
+- **참고 맥락 전달:** 각 항목에 섹션 제목과 상위 항목 원문을 `context`로 함께 보냄. 프롬프트에 "context는 번역 대상이 아님, 이해용"이라고 명시하고, 응답 스키마에는 context가 없음
+  - 요청 형태: `{ glossary: [...], items: [{ id, text, context: { section, parentText? } }] }`
+- 검증: ID 집합이 요청과 같은지, 빈 번역이 없는지, 원문 대비 길이가 너무 짧지 않은지(언어별 기준)
+- 실패하면 1회 재시도, 그래도 실패하면 원문은 저장한 채 `검수 필요`로 표시. 다른 버전은 계속 처리
+- 모델명은 Script Properties `CLAUDE_MODEL`(기본값 `claude-sonnet-5-5`)
+
+### 웹 뷰어 데이터 — 캐시 없이 시트 직접 읽기
+- `getViewerData()`가 호출될 때마다 버전·항목 탭을 `getValues()`로 한 번에 읽어 JSON으로 보냄
+- CacheService는 사용하지 않음(키당 100KB 제한, 아래 예상 크기상 분할 저장이 필요하고 무효화 관리가 복잡해짐)
+- 응답 크기를 줄이기 위해 항목은 객체 대신 배열(열 순서 고정)로 보내고 빈 값은 생략
+- 7단계에서 응답 시간을 측정해서 3초를 넘으면 그때 분할 캐시(키당 90KB 이하로 나눠 `putAll`)를 추가
+
+#### 데이터 크기 예상
+| 기준 | 계산 | 예상 |
+|---|---|---|
+| 항목 1개 | 한국어 약 150자(UTF-8 약 450B) + 영어 원문 약 300B + 메타(ID·태그·기기 등) 약 150B | 약 0.9KB |
+| 1차 백필 | 약 20개 버전 × 버전당 20~60개 항목 = 400~1,200개 | **약 0.4~1.1MB** |
+| 2차(선택) 포함 | 2024년 약 10개 버전 추가 | 약 0.6~1.6MB |
+| 연간 증가 | 2~3주 주기 → 연 약 20개 버전 | 연 약 0.4~1MB |
+- 시트 행 수로는 수천 행 수준이라 시트 한도(1천만 셀)와는 거리가 멂
+- 실제 크기는 4단계 미리보기·6단계 백필 후 다시 측정해서 이 표를 갱신
+
+### Script Properties (예정)
+| 키 | 용도 | 기본값 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | Claude API 키 (필수, 직접 입력) | 없음 |
+| `CLAUDE_MODEL` | 번역 모델 | `claude-sonnet-5-5` |
+| `TRANSLATE_BATCH_SIZE` | 번역 요청 1회당 항목 수 | `20` (5단계 측정 후 조정) |
+| `GMAIL_QUERY` | 후보 메일 검색 쿼리 (주소·라벨 조건) | `from:appupdate@aqara.kr OR to:appupdate@aqara.kr` |
+| `SUBJECT_KEYWORDS` | 제목 키워드 (쉼표 구분, 대소문자 무시) | `release,notice,notification` |
+| `CHAT_WEBHOOK_URL` | (선택) 구글 챗 알림 | 없음 |
+| 진행 상태용 키 | 마지막 처리 시점, 처리 대기 목록 | 코드가 관리 |
+
+### 백필 미리보기 (두 가지)
+- 로컬: `npm run preview-backfill`이 픽스처 메일을 바로 파싱해서 보여줌
+- GAS: 시트 메뉴 `백필 미리보기`가 실제 Gmail을 읽고 결과를 실행 로그(Logger)에만 출력. 시트에는 기록하지 않음
+- 출력 내용
+  1. 메일별: 날짜, 제목, 추출 버전(원본/인용본), 섹션별 항목 수, 기타로 분류된 문단
+  2. **발신자 조건은 맞지만 제목 키워드로 제외된 메일** 목록(날짜·제목만, 본문은 열지 않음)
+  3. **버전 추출 실패 메일** 목록(날짜·제목·실패 사유)
+  4. 요약: 메일 수, 추출 버전 목록, 인용본에서만 나온 버전, 이미 저장되어 건너뛸 버전
+- `clasp run`은 쓰지 않음(GCP 프로젝트 연결 등 추가 설정이 많이 필요함)
+
+### 테스트 데이터 초기화 (6단계 전)
+- 함수 `resetTestData()`, 메뉴 `관리 → 테스트 데이터 초기화…`
+- 동작: 버전·항목·실행 로그 탭의 데이터 행 삭제(헤더 유지), 진행 상태 Script Properties 삭제, `continueRun` 일회성 트리거 삭제
+- 유지: 용어집 탭, `ANTHROPIC_API_KEY` 등 설정값, 주간 트리거
+- 안전장치: 확인 창에 `초기화` 입력해야 실행. 실행 전에 시트 사본을 드라이브에 백업(`… 백업 YYYYMMDD-HHmm`)하고 사본 URL을 로그로 남김
+- 6단계 절차: ① 시트 메뉴로 초기화 → ② 버전·항목 탭이 비었는지 확인 → ③ 백필 미리보기 → ④ 실제 백필
+
+## 3. 단계별 작업 순서
+
+단계마다 결과·테스트 방법을 보고하고, 진행 여부를 확인받은 뒤 커밋합니다.
+
+| 단계 | 내용 | 끝났을 때 확인할 것 | 직접 하실 일 |
+|---|---|---|---|
+| **1** | 빌드 골격: build.mjs, 래퍼 자동 생성, 테스트 메뉴, `doGet` 헬로 페이지, vitest 동작 확인 | `npm run push` 후 시트에 메뉴가 보임 | 시트 새로고침, 메뉴 실행(첫 권한 승인) |
+| **2** | 파서 전체 + 가공 샘플 + 필수 테스트 9종 | `npm test` 통과, `npm run preview-backfill`로 실제 메일 파싱 결과 확인 | **실제 메일 .eml 제공** |
+| **3** | 시트 저장소, `setup()`(탭·헤더만), 용어집 초기값, 숨김 열, 수정 여부 감지 | `setup()`을 두 번 실행해도 결과가 같음 | `setup()` 실행 |
+| **4** | Gmail 수집(메타데이터 → 키워드 → 본문), 중복 제거, 이어서 처리(일회성 트리거 삭제 포함), 실행 로그, GAS 백필 미리보기, 재파싱 메뉴. 번역 없이 원문만 저장(`번역 대기`) | 미리보기에서 메일별 버전·섹션, 제외 메일, 추출 실패 메일 확인 | 미리보기 결과 검토 |
+| **5** | Claude 번역(tool use 스키마 강제, 참고 맥락), 검증, 재시도, `검수 필요` 처리, 메일 알림, "선택 항목 재번역", **배치 크기 응답 시간 측정·조정** | 1개 버전으로 번역 테스트, 측정 결과 보고 | **Script Properties에 API 키 입력** |
+| **6** | 테스트 데이터 초기화 → 실제 백필(약 20건) 실행, 결과 요약, 데이터 크기 재측정 | 메일 수, 버전 목록, 인용본에서만 나온 버전, 검수 필요 목록 | 초기화·실행 승인, 결과 검수 |
+| **7** | 웹 뷰어(타임라인, 상세, 검색·필터, 모바일 화면) + deploy.mjs + deploy.config.json + 최초 배포, 응답 시간 측정 | 팀원 계정으로 열람되는지 확인 | 배포 승인, 웹앱 권한 승인 |
+| **8** | `installTriggers()` 실행, README(최초 설정, 팀원 안내), 트리거 확인 | `설정 점검`에서 주간 트리거 1개, `continueRun` 0개 | `installTriggers()` 실행 |
+| **9** | (선택) 2024년 사내 번역본 가져오기, 챗 웹훅 연결 | | 메일 범위 확인 |
+
+### 2단계 필수 테스트 (SPEC 10번)
+1. 인용 구분자 2종 분리
+2. 9개 버전 추출 (v6.4.1 메일)
+3. 섹션 제목 변형 전부 분류
+4. 미분류 문단의 기타 저장
+5. 채널별 버전(v6.3.3/v6.3.4) 추출
+6. 플랫폼 접두어 분리
+7. 이미 저장된 버전 건너뛰기
+8. 같은 버전이 원본·인용본에 중복 등장 시 원본 기준 1회 저장
+9. 대문자 `V` 제목(V6.0.3) 버전 추출
+- 추가: 제목 키워드 판정(제외 대상 판정), 버전 추출 실패 시 실패 사유 반환
+
+## 4. 확정 사항
+1. 픽스처: Gmail "원본 보기 → 원본 다운로드"로 받은 .eml을 2단계 시작할 때 `fixtures/private/`에 제공
+   - 필수: 2025년 메일 1건(V6.0.3이면 좋음), 2026년 초 메일 1건(v6.1.3 또는 v6.1.4), v6.4.1 메일
+   - 가능하면 추가: v6.3.3(채널별 버전), v6.3.1(버전 체계 안내)
+2. `postal-mime`, `@types/node` devDependency 설치 완료
+3. 숨김 열 `기계 번역`, `원문 언어` 추가
+
+## 변경 이력
+- 개정 1 (2026-10-28)
+  - 처리 상태에 `번역 대기` 추가, 수집/번역 단계 분리, 6단계 전 테스트 데이터 초기화 절차 추가
+  - `setup()`은 탭·헤더만, 트리거는 `installTriggers()`로 분리해 8단계에 실행
+  - 웹 뷰어 캐시 제거(시트 직접 읽기), 데이터 크기 예상치 추가
+  - 번역 묶음 크기 `TRANSLATE_BATCH_SIZE` 설정값화, 5단계에서 응답 시간 측정 후 조정
+  - Claude 응답은 tool use(`tool_choice` 강제)로 JSON 스키마 강제
+  - 번역 요청에 섹션 제목·상위 항목 원문을 참고 맥락(번역 대상 아님)으로 전달
+  - 저장된 버전 재파싱은 별도 메뉴 전용, 수정된 항목이 있으면 경고 후 중단
+  - 미리보기에 키워드 제외 메일·버전 추출 실패 메일 목록 추가 (메타데이터만 읽고 키워드 판정)
+  - 이어서 처리용 일회성 트리거 삭제 규칙 명시
+  - `DEPLOYMENT_ID`는 `deploy.config.json`에 보관해 git 커밋

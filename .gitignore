@@ -12,6 +12,9 @@ dist/
 # 실제 릴리즈 메일 원문(internal use only) — 커밋 금지
 fixtures/private/
 
+# 커밋 메시지 초안 (커밋 성공 후 삭제, CLAUDE.md 커밋 규칙)
+commit-msg*.txt
+
 # IDE / local
 .idea
 .idea/workspace.xml
