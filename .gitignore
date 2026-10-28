@@ -13,6 +13,7 @@ dist/
 fixtures/private/
 
 # IDE / local
+.idea
 .idea/workspace.xml
 .idea/shelf/
 .claude/settings.local.json
