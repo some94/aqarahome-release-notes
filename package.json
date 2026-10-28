@@ -1,0 +1,26 @@
+{
+  "name": "aqarahome-release-notes",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Aqara Home 앱 릴리즈 노트 수집·번역·웹 뷰어 (Google Apps Script)",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "push": "npm run build && clasp push",
+    "deploy": "node scripts/deploy.mjs",
+    "preview-backfill": "node scripts/preview-backfill.mjs"
+  },
+  "devDependencies": {
+    "@types/google-apps-script": "^2.0.13",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

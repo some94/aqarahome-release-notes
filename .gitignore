@@ -1,0 +1,20 @@
+# dependencies / build output
+node_modules/
+dist/
+
+# clasp (script ID, credentials)
+.clasp.json
+.clasprc.json
+
+# secrets
+.env*
+
+# 실제 릴리즈 메일 원문(internal use only) — 커밋 금지
+fixtures/private/
+
+# IDE / local
+.idea/workspace.xml
+.idea/shelf/
+.claude/settings.local.json
+coverage/
+*.log
