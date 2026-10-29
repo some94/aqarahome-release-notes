@@ -1,3 +1,8 @@
+import { describeConfig } from './config';
+import { setup } from './setup';
+import { getSpreadsheet } from './sheets/repo';
+import { TABS } from '../shared/schema';
+
 export const MENU_TITLE = '릴리즈 노트';
 
 export function buildMenu(): void {
@@ -5,7 +10,15 @@ export function buildMenu(): void {
     .createMenu(MENU_TITLE)
     // 메뉴 항목의 두 번째 인자는 최상위 함수 이름(main.ts에서 export한 이름)
     .addItem('설정 점검', 'checkConfig')
+    .addSeparator()
+    .addSubMenu(SpreadsheetApp.getUi().createMenu('관리').addItem('초기 설정(탭·헤더)', 'runSetup'))
     .addToUi();
+}
+
+/** 메뉴용: setup() 실행 후 결과를 대화상자로 보여준다 */
+export function runSetup(): void {
+  const report = setup();
+  SpreadsheetApp.getUi().alert('초기 설정 완료', report.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 export function checkConfig(): void {
@@ -15,6 +28,12 @@ export function checkConfig(): void {
     `실행 계정: ${Session.getEffectiveUser().getEmail()}`,
     `Gmail API: ${gmailStatus()}`,
     `트리거: ${triggerSummary()}`,
+    '',
+    '[탭]',
+    ...tabSummary(),
+    '',
+    '[Script Properties]',
+    ...describeConfig(),
   ];
   SpreadsheetApp.getUi().alert('설정 점검', lines.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK);
 }
@@ -39,4 +58,12 @@ function triggerSummary(): string {
   }
   if (counts.size === 0) return '없음';
   return [...counts].map(([name, n]) => `${name} ${n}개`).join(', ');
+}
+
+function tabSummary(): string[] {
+  const ss = getSpreadsheet();
+  return Object.values(TABS).map((name) => {
+    const sheet = ss.getSheetByName(name);
+    return sheet ? `${name}: 데이터 ${Math.max(sheet.getLastRow() - 1, 0)}행` : `${name}: 없음 — "관리 → 초기 설정" 필요`;
+  });
 }

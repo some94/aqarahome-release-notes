@@ -1,10 +1,22 @@
 // GAS 진입점. 여기서 export한 함수는 빌드 시 같은 이름의 최상위 함수로 노출된다
 // (메뉴·트리거·google.script.run은 최상위 함수만 찾을 수 있음).
-import { buildMenu, checkConfig } from './menu';
+import { handleEdit } from './edits';
+import { buildMenu, checkConfig, runSetup } from './menu';
+import { setup as setupTabs } from './setup';
 import { doGet, ping } from './webapp';
 
 export function onOpen(): void {
   buildMenu();
 }
 
-export { checkConfig, doGet, ping };
+/** simple 트리거: 항목 탭 한국어 수정 → 수정 여부 표시 */
+export function onEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void {
+  handleEdit(e);
+}
+
+/** 탭·헤더 생성(트리거는 만들지 않음). 스크립트 편집기에서 실행하면 결과가 실행 로그에 남는다 */
+export function setup(): void {
+  for (const line of setupTabs()) console.log(line);
+}
+
+export { checkConfig, doGet, ping, runSetup };
