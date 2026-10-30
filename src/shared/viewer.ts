@@ -160,11 +160,26 @@ export function matchesQuery(item: ViewerItem, query: string): boolean {
   return words.every((w) => haystack.includes(w));
 }
 
-/** 플랫폼 필터: '공통' 항목은 모든 플랫폼에 해당하므로 플랫폼을 고르면 공통도 함께 보여준다 */
+/**
+ * 플랫폼 필터는 3가지만: 전체(AOS+iOS) / AOS / iOS.
+ * AOS·iOS를 고르면 그 OS로 표시된 항목만 보여준다('공통' 항목은 '전체'에서 확인 — 사용자 결정 2026-10-30).
+ */
+export const PLATFORM_FILTERS = [
+  { value: '', label: '전체(AOS+iOS)' },
+  { value: 'aos', label: 'AOS' },
+  { value: 'ios', label: 'iOS' },
+] as const;
+
+/** 필터 값별로 해당하는 항목 플랫폼 (Google Play·HarmonyOS는 Android 앱, Mac은 iOS 앱) */
+const PLATFORM_GROUPS: Record<string, string[]> = {
+  aos: ['Android', 'Google Play', 'HarmonyOS'],
+  ios: ['iOS', 'Mac'],
+};
+
 export function matchesPlatform(item: ViewerItem, platform: string): boolean {
-  if (!platform) return true;
-  const list = item.platform.split(/\s*,\s*/);
-  return list.includes(platform) || (platform !== '공통' && list.includes('공통'));
+  const group = PLATFORM_GROUPS[platform];
+  if (!group) return true;
+  return item.platform.split(/\s*,\s*/).some((p) => group.includes(p));
 }
 
 export function matchesFilters(item: ViewerItem, version: ViewerVersion | undefined, f: Filters): boolean {

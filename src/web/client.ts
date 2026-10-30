@@ -6,6 +6,7 @@ import {
   hasActiveFilters,
   matchesFilters,
   normalize,
+  PLATFORM_FILTERS,
   VIEWER_SECTION_ORDER,
   type Filters,
   type ViewerData,
@@ -13,7 +14,6 @@ import {
   type ViewerVersion,
 } from '../shared/viewer';
 
-const PLATFORMS = ['공통', 'Android', 'iOS', 'Mac', 'Google Play', 'HarmonyOS', 'Web'];
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const el = {
@@ -292,7 +292,7 @@ function load(data: ViewerData): void {
 
   const deviceCounts = new Map<string, number>();
   for (const item of items) for (const d of item.devices) deviceCounts.set(d, (deviceCounts.get(d) ?? 0) + 1);
-  fillOptions(el.platform, PLATFORMS);
+  el.platform.innerHTML = PLATFORM_FILTERS.map((p) => `<option value="${p.value}">${escapeHtml(p.label)}</option>`).join('');
   fillOptions(el.section, VIEWER_SECTION_ORDER.filter((s) => items.some((i) => i.section === s)));
   fillOptions(el.device, [...deviceCounts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([d]) => d));
 
@@ -359,7 +359,10 @@ function start(params: Record<string, string>): void {
       load(data);
       state.filters = {
         query: params.q ?? '',
-        platform: params.platform ?? '',
+        // 예전 링크(platform=iOS 등)도 받아들이고, 알 수 없는 값은 전체로
+        platform: PLATFORM_FILTERS.some((p) => p.value === (params.platform ?? '').toLowerCase())
+          ? (params.platform ?? '').toLowerCase()
+          : '',
         section: params.section ?? '',
         device: params.device ?? '',
         internalOnly: params.internal === '1',

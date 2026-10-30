@@ -8,6 +8,7 @@ import {
   matchesFilters,
   matchesPlatform,
   matchesQuery,
+  PLATFORM_FILTERS,
   toViewerItemRow,
   toViewerVersion,
   VIEWER_SECTION_ORDER,
@@ -72,12 +73,24 @@ describe('검색·필터', () => {
     expect(matchesQuery(it1, '카메라 ios')).toBe(true);
   });
 
-  it('플랫폼을 고르면 공통 항목도 함께(공통은 모든 플랫폼에 해당)', () => {
-    expect(matchesPlatform(item({ platform: 'iOS' }), 'iOS')).toBe(true);
-    expect(matchesPlatform(item({ platform: '공통' }), 'iOS')).toBe(true);
-    expect(matchesPlatform(item({ platform: 'Android' }), 'iOS')).toBe(false);
-    expect(matchesPlatform(item({ platform: 'Android, iOS' }), 'iOS')).toBe(true);
-    expect(matchesPlatform(item({ platform: 'iOS' }), '공통')).toBe(false);
+  it('플랫폼 필터는 전체(AOS+iOS)·AOS·iOS 3가지', () => {
+    expect(PLATFORM_FILTERS.map((p) => p.label)).toEqual(['전체(AOS+iOS)', 'AOS', 'iOS']);
+  });
+
+  it('AOS·iOS를 고르면 그 OS로 표시된 항목만(공통 제외)', () => {
+    expect(matchesPlatform(item({ platform: 'iOS' }), 'ios')).toBe(true);
+    expect(matchesPlatform(item({ platform: 'Mac' }), 'ios')).toBe(true);
+    expect(matchesPlatform(item({ platform: '공통' }), 'ios')).toBe(false);
+    expect(matchesPlatform(item({ platform: 'Android' }), 'ios')).toBe(false);
+    expect(matchesPlatform(item({ platform: 'Android' }), 'aos')).toBe(true);
+    expect(matchesPlatform(item({ platform: 'Google Play' }), 'aos')).toBe(true);
+    expect(matchesPlatform(item({ platform: 'iOS, Android, HarmonyOS' }), 'aos')).toBe(true);
+    expect(matchesPlatform(item({ platform: 'Android, iOS' }), 'ios')).toBe(true);
+    expect(matchesPlatform(item({ platform: 'Web' }), 'aos')).toBe(false);
+  });
+
+  it('전체는 공통·Web 포함 모든 항목', () => {
+    for (const platform of ['공통', 'Web', 'iOS', 'Android']) expect(matchesPlatform(item({ platform }), '')).toBe(true);
   });
 
   it('내부용만·섹션·기기·기간(승인일, 양끝 포함)', () => {
