@@ -5,6 +5,7 @@ import { TABS, type TabKey } from '../shared/schema';
 import { clearRunState } from './pipeline';
 import { getSpreadsheet } from './sheets/repo';
 import { clearContinuation } from './triggers';
+import { invalidateViewerCache } from './viewer-cache';
 
 const CLEAR_TABS: TabKey[] = ['versions', 'items', 'runs'];
 
@@ -41,6 +42,7 @@ export function resetTestData(): ResetResult {
     if (rows > 0) sheet.getRange(2, 1, rows, cols).clearContent().clearDataValidations();
     cleared.push(`${TABS[tab]}: ${before}행 삭제`);
   }
+  invalidateViewerCache();
   clearRunState();
   PropertiesService.getScriptProperties().deleteProperty('LAST_PROCESSED_AT');
   const triggers = clearContinuation();

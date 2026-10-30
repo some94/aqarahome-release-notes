@@ -2,10 +2,13 @@
 // 붙여넣기·스크립트 수정처럼 onEdit이 못 잡는 경우는 isEditedItem()이 기계 번역과 비교해서 보완한다.
 import { editedFlagAfterEdit, TABS } from '../shared/schema';
 import { readHeaders } from './sheets/repo';
+import { invalidateViewerCache } from './viewer-cache';
 
 export function handleEdit(e: GoogleAppsScript.Events.SheetsOnEdit): void {
   const range = e.range;
   const sheet = range.getSheet();
+  // 사람이 버전·항목 탭을 고치면 뷰어 캐시를 지운다(번역 수정, 처리 상태 변경 등)
+  if (sheet.getName() === TABS.versions || sheet.getName() === TABS.items) invalidateViewerCache();
   if (sheet.getName() !== TABS.items) return;
 
   const headers = readHeaders(sheet);

@@ -2,6 +2,7 @@
 // 마지막 행은 getLastRow()가 아니라 키 열로 판단한다 — 체크박스 규칙이 걸린 빈 칸은
 // 시트에서 FALSE 값으로 취급되어 getLastRow()가 실제 데이터보다 커진다.
 import { getConfig } from '../config';
+import { invalidateViewerCache } from '../viewer-cache';
 import {
   CHECKBOX_COLUMNS,
   COLUMNS,
@@ -17,6 +18,11 @@ import {
 } from '../../shared/schema';
 
 type Sheet = GoogleAppsScript.Spreadsheet.Sheet;
+
+/** 뷰어에 보이는 탭이 바뀌면 뷰어 캐시를 지운다 */
+function touched(tab: TabKey): void {
+  if (tab === 'versions' || tab === 'items') invalidateViewerCache();
+}
 
 export function getSpreadsheet(): GoogleAppsScript.Spreadsheet.Spreadsheet {
   // 시트에서 실행하면 활성 시트, 웹앱·트리거처럼 활성 시트가 없을 수 있는 곳에서는 setup()이 저장한 ID
@@ -82,6 +88,7 @@ export function appendRecords(tab: TabKey, records: SheetRecord[]): void {
   for (const header of CHECKBOX_COLUMNS[tab] ?? []) {
     sheet.getRange(start, headers.indexOf(header) + 1, rows.length, 1).setDataValidation(checkbox);
   }
+  touched(tab);
 }
 
 /** 지정한 열만 고친다(다른 열 — 특히 사람이 고친 칸 — 은 건드리지 않음) */
@@ -93,12 +100,15 @@ export function updateCells(tab: TabKey, rowNumber: number, values: SheetRecord)
     if (col < 0) throw new Error(`"${TABS[tab]}" 탭에 "${key}" 열이 없습니다.`);
     sheet.getRange(rowNumber, col + 1).setValue(value);
   }
+  touched(tab);
 }
 
 /** 조건에 맞는 행 삭제. 연속 구간은 한 번에 지운다(아래에서 위로). 지운 행 수를 돌려준다 */
 export function deleteRows(tab: TabKey, match: (record: SheetRecord) => boolean): number {
   const { sheet, rows } = readTable(tab);
-  return deleteRowNumbers(sheet, rows.filter((r) => match(r.record)).map((r) => r.rowNumber));
+  const deleted = deleteRowNumbers(sheet, rows.filter((r) => match(r.record)).map((r) => r.rowNumber));
+  if (deleted) touched(tab);
+  return deleted;
 }
 
 export function deleteRowNumbers(sheet: Sheet, rowNumbers: number[]): number {
@@ -160,6 +170,7 @@ export function writeCells(tab: TabKey, updates: { rowNumber: number; values: Sh
       i = j + 1;
     }
   }
+  touched(tab);
 }
 
 export function readGlossary(): { source: string; korean: string; note?: string }[] {

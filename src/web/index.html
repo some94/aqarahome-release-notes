@@ -3,13 +3,39 @@
 <head>
   <base target="_top">
   <meta charset="utf-8">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <!-- @styles -->
 </head>
 <body>
-  <main class="page">
-    <h1>Aqara Home 릴리즈 노트</h1>
-    <p id="status">서버 연결 확인 중…</p>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="brand">
+        <h1>Aqara Home 릴리즈 노트</h1>
+        <p id="meta" class="meta">불러오는 중…</p>
+      </div>
+      <div class="search">
+        <input id="q" type="search" placeholder="검색: 카메라, W200, Matter, 자동화 …" autocomplete="off" aria-label="통합 검색">
+      </div>
+      <div class="filters" role="group" aria-label="필터">
+        <select id="f-platform" aria-label="플랫폼"><option value="">플랫폼 전체</option></select>
+        <select id="f-section" aria-label="섹션"><option value="">섹션 전체</option></select>
+        <select id="f-device" aria-label="관련 기기"><option value="">기기 전체</option></select>
+        <label class="date"><span>승인일</span><input id="f-from" type="date" aria-label="시작일"></label>
+        <label class="date"><span>~</span><input id="f-to" type="date" aria-label="종료일"></label>
+        <label class="check"><input id="f-internal" type="checkbox"> 내부용만</label>
+        <button id="f-reset" type="button" class="link">초기화</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="app" class="layout">
+    <section id="list" class="list" aria-label="버전 목록"></section>
+    <section id="detail" class="detail" aria-label="버전 상세">
+      <div class="placeholder">왼쪽에서 버전을 선택하세요.</div>
+    </section>
   </main>
+
+  <div id="status" class="status" role="status">데이터를 불러오는 중…</div>
   <!-- @script -->
 </body>
 </html>

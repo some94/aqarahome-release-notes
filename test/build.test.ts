@@ -14,7 +14,7 @@ describe('빌드 결과', () => {
   it('main.ts의 export마다 최상위 함수 래퍼가 생긴다', () => {
     const code = read('dist/Code.js');
     for (const name of [
-      'onOpen', 'onEdit', 'setup', 'runSetup', 'checkConfig', 'doGet', 'ping',
+      'onOpen', 'onEdit', 'setup', 'runSetup', 'checkConfig', 'doGet', 'getViewerData',
       'collectNow', 'continueRun', 'previewBackfillMenu', 'runBackfillMenu', 'reparseMenu',
       'retranslateSelectedMenu', 'translateTestMenu', 'resetTestDataMenu',
     ]) {

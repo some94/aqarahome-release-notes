@@ -15,7 +15,7 @@ import {
 } from './menu';
 import { continuePipeline } from './pipeline';
 import { setup as setupTabs } from './setup';
-import { doGet, ping } from './webapp';
+import { doGet, getViewerData } from './webapp';
 
 export function onOpen(): void {
   buildMenu();
@@ -40,7 +40,7 @@ export {
   checkConfig,
   collectNow,
   doGet,
-  ping,
+  getViewerData,
   previewBackfillMenu,
   reparseMenu,
   resetTestDataMenu,
