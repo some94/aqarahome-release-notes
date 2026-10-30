@@ -33,6 +33,8 @@
 ## 반드시 지킬 것
 - Gmail은 읽기 전용: 메일 수정·삭제·라벨 변경 금지, 릴리즈 노트가 아닌 메일 본문 읽기·저장 금지
 - 번역은 요약·생략 금지(누락 방지가 우선). 실패 시 원문은 반드시 저장하고 `검수 필요` 처리
+  - Claude 호출은 `UrlFetchApp` + 구조화 출력(`output_config.format`). `claude-sonnet-5-5`는 `tool_choice` 강제(any/tool)가 400이므로 쓰지 말 것. `temperature`·thinking 끄기도 보내지 말 것(400)
+  - Claude API 사용법을 바꿀 때는 기억에 의존하지 말고 claude-api 스킬·최신 문서로 확인
 - 웹앱은 `access: DOMAIN`(aqara.kr), `executeAs: USER_DEPLOYING` — 익명 공개 배포 금지
 - API 키·웹훅 URL 등 비밀값은 Script Properties에만. 코드·저장소에 하드코딩·커밋 금지
 - `appsscript.json` OAuth scope는 필요한 것만(Gmail은 readonly)
