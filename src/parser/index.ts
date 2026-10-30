@@ -7,7 +7,7 @@ import type { BlockFailure, MailBlock, MailInput, MailParseResult, ParsedVersion
 
 export * from './types';
 export { selectVersions } from './dedupe';
-export type { SelectionResult, SelectedVersion, VersionCandidate } from './dedupe';
+export type { SelectionResult, SelectedVersion, SelectOptions, VersionCandidate } from './dedupe';
 export { checkSubject, DEFAULT_SUBJECT_KEYWORDS } from './subject-filter';
 export { SECTION_LABELS } from './sections';
 export { CHANNEL_LABELS } from './status';

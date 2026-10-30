@@ -24,10 +24,26 @@ export interface SelectionResult {
   skippedExisting: string[];
   /** 선택되지 않은 중복 후보(인용본 등) */
   superseded: { version: string; mailId: string; depth: number }[];
+  /** 원본 메일이 아직 처리 대기 중이라 인용본을 쓰지 않고 미룬 버전 */
+  deferred: string[];
 }
 
-export function selectVersions(candidates: VersionCandidate[], existing: Iterable<string> = []): SelectionResult {
+export interface SelectOptions {
+  /**
+   * 원본 메일이 큐에 남아 있는 버전(제목 기준). 메일을 하나씩 처리할 때
+   * 인용본이 원본보다 먼저 저장되지 않도록, 이 버전은 원본 후보가 없으면 미룬다.
+   */
+  defer?: Iterable<string>;
+}
+
+export function selectVersions(
+  candidates: VersionCandidate[],
+  existing: Iterable<string> = [],
+  options: SelectOptions = {},
+): SelectionResult {
   const existingSet = new Set(existing);
+  const deferSet = new Set(options.defer ?? []);
+  const deferred: string[] = [];
   const byVersion = new Map<string, VersionCandidate[]>();
   for (const c of candidates) {
     const list = byVersion.get(c.parsed.version) ?? [];
@@ -51,6 +67,10 @@ export function selectVersions(candidates: VersionCandidate[], existing: Iterabl
         a.parsed.source.depth - b.parsed.source.depth,
     );
     const best = sorted[0]!;
+    if (best.parsed.source.depth > 0 && deferSet.has(version)) {
+      deferred.push(version);
+      continue;
+    }
     selected.push({ ...best, origin: best.parsed.source.depth === 0 ? 'original' : 'quote' });
     for (const other of sorted.slice(1)) {
       superseded.push({ version, mailId: other.mailId, depth: other.parsed.source.depth });
@@ -59,5 +79,6 @@ export function selectVersions(candidates: VersionCandidate[], existing: Iterabl
 
   selected.sort((a, b) => compareVersions(a.parsed.version, b.parsed.version));
   skippedExisting.sort(compareVersions);
-  return { selected, skippedExisting, superseded };
+  deferred.sort(compareVersions);
+  return { selected, skippedExisting, superseded, deferred };
 }

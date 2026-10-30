@@ -1,7 +1,16 @@
 // GAS 진입점. 여기서 export한 함수는 빌드 시 같은 이름의 최상위 함수로 노출된다
 // (메뉴·트리거·google.script.run은 최상위 함수만 찾을 수 있음).
 import { handleEdit } from './edits';
-import { buildMenu, checkConfig, runSetup } from './menu';
+import {
+  buildMenu,
+  checkConfig,
+  collectNow,
+  previewBackfillMenu,
+  reparseMenu,
+  runBackfillMenu,
+  runSetup,
+} from './menu';
+import { continuePipeline } from './pipeline';
 import { setup as setupTabs } from './setup';
 import { doGet, ping } from './webapp';
 
@@ -19,4 +28,9 @@ export function setup(): void {
   for (const line of setupTabs()) console.log(line);
 }
 
-export { checkConfig, doGet, ping, runSetup };
+/** 이어서 처리용 일회성 트리거 핸들러 — 시작하자마자 자기 트리거를 지운다 */
+export function continueRun(): void {
+  for (const line of continuePipeline().summary) console.log(line);
+}
+
+export { checkConfig, collectNow, doGet, ping, previewBackfillMenu, reparseMenu, runBackfillMenu, runSetup };

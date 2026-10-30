@@ -13,7 +13,10 @@ describe('빌드 결과', () => {
 
   it('main.ts의 export마다 최상위 함수 래퍼가 생긴다', () => {
     const code = read('dist/Code.js');
-    for (const name of ['onOpen', 'onEdit', 'setup', 'runSetup', 'checkConfig', 'doGet', 'ping']) {
+    for (const name of [
+      'onOpen', 'onEdit', 'setup', 'runSetup', 'checkConfig', 'doGet', 'ping',
+      'collectNow', 'continueRun', 'previewBackfillMenu', 'runBackfillMenu', 'reparseMenu',
+    ]) {
       expect(code).toContain(`function ${name}() { return App.${name}.apply(this, arguments); }`);
     }
     expect(code).not.toContain('__BUILD_TIME__');
