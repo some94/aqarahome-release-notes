@@ -5,6 +5,8 @@ export const PROPERTY_DEFAULTS = {
   GMAIL_QUERY: 'from:appupdate@aqara.kr OR to:appupdate@aqara.kr',
   SUBJECT_KEYWORDS: DEFAULT_SUBJECT_KEYWORDS.join(','),
   CLAUDE_MODEL: 'claude-sonnet-5-5',
+  /** 번역 깊이(low|medium|high|xhigh|max). 번역은 규칙이 분명한 대량 작업이라 low에서 시작해 측정 후 조정 */
+  CLAUDE_EFFORT: 'low',
   TRANSLATE_BATCH_SIZE: '20',
 } as const;
 
@@ -15,6 +17,7 @@ export interface Config {
   gmailQuery: string;
   subjectKeywords: string[];
   claudeModel: string;
+  claudeEffort: string;
   translateBatchSize: number;
   anthropicApiKey?: string;
   chatWebhookUrl?: string;
@@ -39,6 +42,7 @@ export function getConfig(): Config {
       .map((s) => s.trim())
       .filter(Boolean),
     claudeModel: read('CLAUDE_MODEL') ?? PROPERTY_DEFAULTS.CLAUDE_MODEL,
+    claudeEffort: read('CLAUDE_EFFORT') ?? PROPERTY_DEFAULTS.CLAUDE_EFFORT,
     translateBatchSize: Number.isFinite(batch) && batch > 0 ? Math.floor(batch) : Number(PROPERTY_DEFAULTS.TRANSLATE_BATCH_SIZE),
     anthropicApiKey: read('ANTHROPIC_API_KEY'),
     chatWebhookUrl: read('CHAT_WEBHOOK_URL'),

@@ -16,6 +16,7 @@ describe('빌드 결과', () => {
     for (const name of [
       'onOpen', 'onEdit', 'setup', 'runSetup', 'checkConfig', 'doGet', 'ping',
       'collectNow', 'continueRun', 'previewBackfillMenu', 'runBackfillMenu', 'reparseMenu',
+      'retranslateSelectedMenu', 'translateTestMenu',
     ]) {
       expect(code).toContain(`function ${name}() { return App.${name}.apply(this, arguments); }`);
     }

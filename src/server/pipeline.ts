@@ -4,7 +4,11 @@
 import { checkSubject, extractSubjectVersions, parseReleaseMail, selectVersions } from '../parser';
 import { getConfig } from './config';
 import { getBody, getMeta, gmailIso, listMessageIds } from './gmail';
+import { notifyChat, notifyOwner } from './notify';
 import { appendRunLog, saveParsedVersion, storedVersions } from './sheets/repo';
+import { ClaudeConfigError } from './translate/claude';
+import { emptyProgress, translatePendingVersions, type TranslateProgress } from './translate/phase';
+import { emptyCallStats } from './translate/translate';
 import { clearContinuation, scheduleContinuation } from './triggers';
 
 export type RunMode = '수동' | '트리거' | '백필';
@@ -45,6 +49,8 @@ interface RunState {
     newVersions: string[];
     errors: string[];
   };
+  /** 번역 단계 진행 상황(이어서 처리할 때도 유지) */
+  translate: TranslateProgress;
 }
 
 export interface RunOutcome {
@@ -66,6 +72,9 @@ function saveState(state: RunState): void {
   state.stats.excluded = capped(state.stats.excluded);
   state.stats.failures = capped(state.stats.failures);
   state.stats.errors = capped(state.stats.errors);
+  state.translate.errors = capped(state.translate.errors);
+  // 응답 시간은 최근 값만(평균·최대 보고용)
+  state.translate.stats.elapsedMs = state.translate.stats.elapsedMs.slice(-MAX_LIST);
   props().setProperty(STATE_KEY, JSON.stringify(state));
 }
 
@@ -139,6 +148,7 @@ function startRun(mode: RunMode): RunState {
     pendingOriginals: [...new Set(queue.flatMap((m) => extractSubjectVersions(m.subject)))],
     maxReceivedAt: last,
     stats: { listed: ids.length, checked: 0, excluded, failures: [], newVersions: [], errors: [] },
+    translate: emptyProgress(emptyCallStats()),
   };
 }
 
@@ -159,8 +169,15 @@ function step(state: RunState, deadline: number): RunOutcome {
   }
 
   if (state.phase === 'translate') {
-    const done = runTranslatePhase(deadline);
-    if (!done) return pause(state);
+    try {
+      const done = translatePendingVersions(deadline, state.translate);
+      saveState(state);
+      if (!done) return pause(state);
+    } catch (e) {
+      // API 키·모델 설정 문제는 계속 시도해도 소용없다 → 번역은 멈추고 '번역 대기'로 남겨 다음 실행에서 다시 시도
+      const prefix = e instanceof ClaudeConfigError ? '번역 중단(설정 확인 필요)' : '번역 중 오류';
+      state.translate.errors.push(`${prefix}: ${(e as Error).message}`);
+    }
   }
   return finish(state);
 }
@@ -199,11 +216,6 @@ function collectMail(state: RunState, mail: QueuedMail, stored: Set<string>): vo
   state.maxReceivedAt = Math.max(state.maxReceivedAt, mail.receivedAt);
 }
 
-/** 번역 단계 — 5단계에서 구현. 지금은 원문만 저장('번역 대기')하고 끝낸다 */
-function runTranslatePhase(_deadline: number): boolean {
-  return true;
-}
-
 function pause(state: RunState): RunOutcome {
   saveState(state);
   scheduleContinuation();
@@ -211,19 +223,32 @@ function pause(state: RunState): RunOutcome {
   return { finished: false, summary: [`시간 제한으로 일시 중지 — ${remaining}. 1분 뒤 자동으로 이어서 처리합니다.`] };
 }
 
+/** 번역 요청 통계 한 줄. 예: "번역 요청 12회, 응답 평균 18.2초·최대 31.0초, 토큰 입력 41,200·출력 38,900" */
+export function describeCallStats(t: TranslateProgress): string {
+  const ms = t.stats.elapsedMs;
+  if (t.stats.calls === 0) return '';
+  const avg = ms.reduce((a, b) => a + b, 0) / Math.max(ms.length, 1) / 1000;
+  const max = Math.max(...ms) / 1000;
+  return `번역 ${t.translatedItems}개 항목, 요청 ${t.stats.calls}회, 응답 평균 ${avg.toFixed(1)}초·최대 ${max.toFixed(1)}초, 토큰 입력 ${t.stats.inputTokens.toLocaleString()}·출력 ${t.stats.outputTokens.toLocaleString()}`;
+}
+
 function finish(state: RunState): RunOutcome {
   const s = state.stats;
+  const t = state.translate;
   const seconds = Math.round((Date.now() - state.startedAt) / 1000);
+  const errors = [...s.errors, ...t.errors, ...s.failures.map((f) => `[추출 실패] ${f}`)];
   appendRunLog({
     '실행 시각': new Date(state.startedAt),
     '실행 방식': state.mode,
     '확인 메일 수': s.checked,
     '신규 버전': s.newVersions.join(', '),
-    '검수 필요 건수': 0,
-    '오류 내용': [...s.errors, ...s.failures.map((f) => `[추출 실패] ${f}`)].join('\n'),
+    '검수 필요 건수': t.reviewVersions.length,
+    '오류 내용': errors.join('\n'),
     '소요 시간(초)': seconds,
     '비고': [
       `검색 ${s.listed}건, 제목 키워드 제외 ${s.excluded.length}건`,
+      describeCallStats(t),
+      t.reviewVersions.length ? `검수 필요: ${t.reviewVersions.join(', ')}` : '',
       state.chunks > 1 ? `이어서 처리 ${state.chunks - 1}회` : '',
       ...s.excluded.map((x) => `[제외] ${x}`),
     ]
@@ -232,14 +257,22 @@ function finish(state: RunState): RunOutcome {
   });
   clearRunState();
   clearContinuation();
-  return {
-    finished: true,
-    summary: [
-      `확인 메일 ${s.checked}건 (검색 ${s.listed}건, 제목 키워드 제외 ${s.excluded.length}건)`,
-      `신규 버전 ${s.newVersions.length}개${s.newVersions.length ? `: ${s.newVersions.join(', ')}` : ''}`,
-      s.failures.length ? `버전 추출 실패 ${s.failures.length}건` : '',
-      s.errors.length ? `오류 ${s.errors.length}건 — 실행 로그 탭 확인` : '',
-      '새 버전은 "번역 대기" 상태로 저장됩니다.',
-    ].filter(Boolean),
-  };
+
+  const summary = [
+    `확인 메일 ${s.checked}건 (검색 ${s.listed}건, 제목 키워드 제외 ${s.excluded.length}건)`,
+    `신규 버전 ${s.newVersions.length}개${s.newVersions.length ? `: ${s.newVersions.join(', ')}` : ''}`,
+    describeCallStats(t),
+    t.reviewVersions.length ? `검수 필요 ${t.reviewVersions.length}개: ${t.reviewVersions.join(', ')}` : '',
+    s.failures.length ? `버전 추출 실패 ${s.failures.length}건` : '',
+    errors.length ? `오류·실패 ${errors.length}건 — 실행 로그 탭 확인` : '',
+  ].filter(Boolean);
+
+  // 알림 실패가 실행 결과를 덮지 않도록 따로 처리
+  try {
+    if (errors.length || t.reviewVersions.length) notifyOwner(`확인 필요 — 오류 ${errors.length}건, 검수 필요 ${t.reviewVersions.length}개`, [...summary, '', ...errors.slice(0, 30)]);
+    if (s.newVersions.length) notifyChat(`Aqara Home 새 릴리즈 노트: ${s.newVersions.join(', ')}`);
+  } catch (e) {
+    summary.push(`알림 전송 실패: ${(e as Error).message}`);
+  }
+  return { finished: true, summary };
 }

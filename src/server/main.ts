@@ -7,8 +7,10 @@ import {
   collectNow,
   previewBackfillMenu,
   reparseMenu,
+  retranslateSelectedMenu,
   runBackfillMenu,
   runSetup,
+  translateTestMenu,
 } from './menu';
 import { continuePipeline } from './pipeline';
 import { setup as setupTabs } from './setup';
@@ -33,4 +35,15 @@ export function continueRun(): void {
   for (const line of continuePipeline().summary) console.log(line);
 }
 
-export { checkConfig, collectNow, doGet, ping, previewBackfillMenu, reparseMenu, runBackfillMenu, runSetup };
+export {
+  checkConfig,
+  collectNow,
+  doGet,
+  ping,
+  previewBackfillMenu,
+  reparseMenu,
+  retranslateSelectedMenu,
+  runBackfillMenu,
+  runSetup,
+  translateTestMenu,
+};

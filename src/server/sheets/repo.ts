@@ -137,3 +137,47 @@ export function saveParsedVersion(input: VersionInput, now = new Date()): void {
 export function appendRunLog(record: SheetRecord): void {
   appendRecords('runs', [record]);
 }
+
+/**
+ * 여러 행의 지정 열만 고친다. 열마다 연속한 행 구간을 한 번에 쓴다(행별 setValue보다 훨씬 빠름).
+ * 지정하지 않은 열은 건드리지 않는다.
+ */
+export function writeCells(tab: TabKey, updates: { rowNumber: number; values: SheetRecord }[]): void {
+  if (updates.length === 0) return;
+  const sheet = getSheet(tab);
+  const headers = readHeaders(sheet);
+  const columns = new Set(updates.flatMap((u) => Object.keys(u.values)));
+  for (const column of columns) {
+    const col = headers.indexOf(column) + 1;
+    if (col === 0) throw new Error(`"${TABS[tab]}" 탭에 "${column}" 열이 없습니다.`);
+    const rows = updates.filter((u) => column in u.values).sort((a, b) => a.rowNumber - b.rowNumber);
+    let i = 0;
+    while (i < rows.length) {
+      let j = i;
+      while (j + 1 < rows.length && rows[j + 1]!.rowNumber === rows[j]!.rowNumber + 1) j++;
+      const run = rows.slice(i, j + 1);
+      sheet.getRange(run[0]!.rowNumber, col, run.length, 1).setValues(run.map((u) => [u.values[column]!]));
+      i = j + 1;
+    }
+  }
+}
+
+export function readGlossary(): { source: string; korean: string; note?: string }[] {
+  return readTable('glossary').rows
+    .map((r) => ({ source: String(r.record['원어']).trim(), korean: String(r.record['한국어 표기'] ?? '').trim(), note: String(r.record['비고'] ?? '').trim() }))
+    .filter((g) => g.source && g.korean)
+    .map((g) => (g.note ? g : { source: g.source, korean: g.korean }));
+}
+
+/** 버전 행의 처리 상태 변경, 경고 추가, 갱신 시각 기록 */
+export function updateVersionStatus(version: string, status: string, addWarnings: string[] = []): void {
+  const row = readTable('versions').rows.find((r) => String(r.record['버전']).trim() === version);
+  if (!row) return;
+  const values: SheetRecord = { '처리 상태': status, '갱신 시각': new Date() };
+  if (addWarnings.length) {
+    const existing = String(row.record['경고'] ?? '').trim();
+    // 셀 크기 제한 대비 길이 제한
+    values['경고'] = [existing, ...addWarnings].filter(Boolean).join('\n').slice(0, 5000);
+  }
+  writeCells('versions', [{ rowNumber: row.rowNumber, values }]);
+}
