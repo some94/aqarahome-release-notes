@@ -290,7 +290,14 @@ aqarahome-release-notes/
     - 캐시 적중 1.1~1.5초(서버 0.1~0.2초), 첫 로드 2.7초
   - 미확인: 다른 aqara.kr 계정으로 열람(팀원 확인 필요), 실제 휴대폰 화면
   - 참고: Gmail 링크는 수집 계정 메일함 기준이라 다른 계정에서는 열리지 않을 수 있음(화면에 안내)
-- [ ] 8단계 installTriggers·README
+- [x] 8단계 installTriggers·README (2026-10-30)
+  - `installTriggers()`(편집기 실행용)·`관리 → 주간 자동 수집 설치·갱신`(메뉴): 핸들러 `scheduledCollect` 트리거를 지운 뒤 1개 생성
+    - 요일·시각은 Script Properties `TRIGGER_WEEKDAY`(기본 MONDAY)·`TRIGGER_HOUR`(기본 9) — 시간 트리거라 지정 시각부터 1시간 안에 실행
+    - 설치 완료: 매주 월요일 9시대(Asia/Seoul). 두 번 실행해도 "기존 1개 교체" → 설정 점검 `scheduledCollect 1개`
+  - 주간 실행과 같은 경로인 "지금 수집"으로 증분 수집 확인: 검색 1건(경계 여유로 잡힌 v6.4.1 메일, 수신 시각으로 제외) → 확인 0건·신규 0개
+  - README.md: 팀원 안내(뷰어 사용법, 번역 고치기, 검수 필요 처리), 운영자 안내(메뉴, 자동 수집, Script Properties, 비용), 최초 설정 절차, 개발 명령, 문제 해결
+  - 메뉴·트리거는 push만으로 반영(HEAD 코드 실행), 운영 웹앱 배포(`npm run deploy`)는 뷰어를 바꿀 때만 — 사용자 확인 후
+- [ ] 9단계(선택) 2024년 사내 번역본 가져오기, 챗 웹훅 연결
 
 ## 4. 확정 사항
 1. 픽스처: Gmail "원본 보기 → 원본 다운로드"로 받은 .eml을 2단계 시작할 때 `fixtures/private/`에 제공
