@@ -3,6 +3,7 @@ import { describeConfig } from './config';
 import { describeCallStats, hasPendingRun, runPipeline, type RunOutcome } from './pipeline';
 import { reparseVersion } from './reparse';
 import { resetTestData } from './reset';
+import { installTriggers } from './triggers';
 import { setup } from './setup';
 import { getSpreadsheet, readTable } from './sheets/repo';
 import { emptyProgress, retranslateItems, translateVersion } from './translate/phase';
@@ -34,6 +35,7 @@ export function buildMenu(): void {
         .addItem('저장된 버전 재파싱…', 'reparseMenu')
         .addSeparator()
         .addItem('초기 설정(탭·헤더)', 'runSetup')
+        .addItem('주간 자동 수집 설치·갱신', 'installTriggersMenu')
         .addItem('테스트 데이터 초기화…', 'resetTestDataMenu'),
     )
     .addToUi();
@@ -194,6 +196,11 @@ export function resetTestDataMenu(): void {
   const lines = ['초기화 완료', ...result.cleared, '', `백업: ${result.backupUrl}`];
   for (const line of lines) console.log(line);
   showReport('테스트 데이터 초기화', lines);
+}
+
+export function installTriggersMenu(): void {
+  const message = installTriggers();
+  SpreadsheetApp.getUi().alert('주간 자동 수집 설치', `${message}\n\n설정 점검에서 트리거가 scheduledCollect 1개인지 확인하세요.`, SpreadsheetApp.getUi().ButtonSet.OK);
 }
 
 /** 메뉴용: setup() 실행 후 결과를 대화상자로 보여준다 */

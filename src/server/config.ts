@@ -8,6 +8,9 @@ export const PROPERTY_DEFAULTS = {
   /** 번역 깊이(low|medium|high|xhigh|max). 번역은 규칙이 분명한 대량 작업이라 low에서 시작해 측정 후 조정 */
   CLAUDE_EFFORT: 'low',
   TRANSLATE_BATCH_SIZE: '20',
+  /** 주간 자동 수집 요일(MONDAY~SUNDAY)·시각(0~23시). 바꾼 뒤 "주간 자동 수집 설치"를 다시 실행 */
+  TRIGGER_WEEKDAY: 'MONDAY',
+  TRIGGER_HOUR: '9',
 } as const;
 
 /** 비밀값 — 점검 화면에서 값은 숨기고 설정 여부만 보여준다 */
@@ -19,6 +22,8 @@ export interface Config {
   claudeModel: string;
   claudeEffort: string;
   translateBatchSize: number;
+  triggerWeekday: string;
+  triggerHour: number;
   anthropicApiKey?: string;
   chatWebhookUrl?: string;
   spreadsheetId?: string;
@@ -44,6 +49,8 @@ export function getConfig(): Config {
     claudeModel: read('CLAUDE_MODEL') ?? PROPERTY_DEFAULTS.CLAUDE_MODEL,
     claudeEffort: read('CLAUDE_EFFORT') ?? PROPERTY_DEFAULTS.CLAUDE_EFFORT,
     translateBatchSize: Number.isFinite(batch) && batch > 0 ? Math.floor(batch) : Number(PROPERTY_DEFAULTS.TRANSLATE_BATCH_SIZE),
+    triggerWeekday: (read('TRIGGER_WEEKDAY') ?? PROPERTY_DEFAULTS.TRIGGER_WEEKDAY).toUpperCase(),
+    triggerHour: Math.min(23, Math.max(0, Math.floor(Number(read('TRIGGER_HOUR') ?? PROPERTY_DEFAULTS.TRIGGER_HOUR)) || 0)),
     anthropicApiKey: read('ANTHROPIC_API_KEY'),
     chatWebhookUrl: read('CHAT_WEBHOOK_URL'),
     spreadsheetId: read('SPREADSHEET_ID'),

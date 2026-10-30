@@ -17,6 +17,7 @@ describe('빌드 결과', () => {
       'onOpen', 'onEdit', 'setup', 'runSetup', 'checkConfig', 'doGet', 'getViewerData',
       'collectNow', 'continueRun', 'previewBackfillMenu', 'runBackfillMenu', 'reparseMenu',
       'retranslateSelectedMenu', 'translateTestMenu', 'resetTestDataMenu',
+      'scheduledCollect', 'installTriggers', 'installTriggersMenu',
     ]) {
       expect(code).toContain(`function ${name}() { return App.${name}.apply(this, arguments); }`);
     }

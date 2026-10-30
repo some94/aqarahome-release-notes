@@ -5,6 +5,7 @@ import {
   buildMenu,
   checkConfig,
   collectNow,
+  installTriggersMenu,
   previewBackfillMenu,
   reparseMenu,
   resetTestDataMenu,
@@ -13,8 +14,9 @@ import {
   runSetup,
   translateTestMenu,
 } from './menu';
-import { continuePipeline } from './pipeline';
+import { continuePipeline, runPipeline } from './pipeline';
 import { setup as setupTabs } from './setup';
+import { installTriggers as installWeekly } from './triggers';
 import { doGet, getViewerData } from './webapp';
 
 export function onOpen(): void {
@@ -36,11 +38,22 @@ export function continueRun(): void {
   for (const line of continuePipeline().summary) console.log(line);
 }
 
+/** 주간 자동 수집 트리거 핸들러 */
+export function scheduledCollect(): void {
+  for (const line of runPipeline('트리거').summary) console.log(line);
+}
+
+/** 주간 트리거 설치(스크립트 편집기에서도 실행 가능). setup()과 분리 — SPEC/PLAN */
+export function installTriggers(): void {
+  console.log(installWeekly());
+}
+
 export {
   checkConfig,
   collectNow,
   doGet,
   getViewerData,
+  installTriggersMenu,
   previewBackfillMenu,
   reparseMenu,
   resetTestDataMenu,
