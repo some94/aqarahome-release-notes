@@ -6,9 +6,11 @@ import {
   fromRow,
   GLOSSARY_SEED,
   HIDDEN_COLUMNS,
+  isBlankRow,
   isEditedItem,
   itemRecords,
   planHeaders,
+  planRowCleanup,
   toRow,
   versionRecord,
 } from '../src/shared/schema';
@@ -107,6 +109,26 @@ describe('헤더 맞추기 (setup idempotent)', () => {
   });
   it('사람이 순서를 바꾸거나 열을 추가해도 그대로 두고, 빠진 열만 뒤에 붙인다', () => {
     expect(planHeaders(['C', '메모', 'A', ''], required)).toEqual({ headers: ['C', '메모', 'A', 'B'], added: ['B'] });
+  });
+});
+
+describe('빈 행 정리 계획 (체크박스 규칙으로 데이터가 1001행부터 쌓인 경우 복구)', () => {
+  const blank = ['', '', false, '', false];
+  it('헤더와 데이터 사이의 완전히 빈 행(FALSE 포함)만 지우고, 마지막 데이터 행은 키 열로 판단한다', () => {
+    const values = [blank, blank, ['v1-a', '1.0.0', false, '', false], ['v1-b', '1.0.0', true, '', false], blank, blank];
+    expect(planRowCleanup(values, 0)).toEqual({ lastDataRow: 5, deleteRows: [2, 3] });
+  });
+  it('사람이 뭔가 적은 행은 키가 없어도 남긴다', () => {
+    const values = [['', '', false, '메모', false], ['v1-a', '1.0.0', false, '', false]];
+    expect(planRowCleanup(values, 0)).toEqual({ lastDataRow: 3, deleteRows: [] });
+  });
+  it('데이터가 없으면 지울 것도 없다', () => {
+    expect(planRowCleanup([blank, blank], 0)).toEqual({ lastDataRow: 1, deleteRows: [] });
+  });
+  it('isBlankRow', () => {
+    expect(isBlankRow(blank)).toBe(true);
+    expect(isBlankRow(['', true])).toBe(false);
+    expect(isBlankRow(['', 0])).toBe(false);
   });
 });
 

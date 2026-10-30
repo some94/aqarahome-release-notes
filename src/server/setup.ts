@@ -1,14 +1,17 @@
 // 초기 설정: 탭·헤더·숨김 열·체크박스·용어집 초기값. 트리거는 만들지 않는다(installTriggers 담당).
 // 여러 번 실행해도 결과가 같다(idempotent): 있는 탭·열·데이터는 그대로 두고 빠진 것만 채운다.
 import { setProperty } from './config';
-import { readHeaders } from './sheets/repo';
+import { deleteRowNumbers, readHeaders } from './sheets/repo';
 import {
   CHECKBOX_COLUMNS,
   COLUMN_WIDTHS,
   COLUMNS,
+  DATETIME_COLUMNS,
   GLOSSARY_SEED,
   HIDDEN_COLUMNS,
+  KEY_COLUMN,
   planHeaders,
+  planRowCleanup,
   TABS,
   type TabKey,
 } from '../shared/schema';
@@ -67,12 +70,19 @@ function ensureTab(ss: GoogleAppsScript.Spreadsheet.Spreadsheet, tab: TabKey, in
   for (const header of HIDDEN_COLUMNS[tab] ?? []) {
     if (col(header) > 0) sheet.hideColumns(col(header));
   }
+  const cleanup = cleanUpRows(sheet, headers, tab);
+
   const dataRows = Math.max(sheet.getMaxRows() - 1, 1);
-  // insertCheckboxes()는 빈 행에 FALSE 값을 채워 getLastRow()가 맨 아래 행이 되므로,
-  // 값은 비워 두고 체크박스 데이터 확인 규칙만 건다
+  // 체크박스 규칙은 데이터 행에만(빈 행에 걸면 시트가 FALSE 값으로 취급 → 마지막 행 계산이 틀어짐).
+  // 새 행에는 appendRecords가 건다
   const checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build();
   for (const header of CHECKBOX_COLUMNS[tab] ?? []) {
-    if (col(header) > 0) sheet.getRange(2, col(header), dataRows, 1).setDataValidation(checkbox);
+    if (col(header) > 0 && cleanup.lastDataRow >= 2) {
+      sheet.getRange(2, col(header), cleanup.lastDataRow - 1, 1).setDataValidation(checkbox);
+    }
+  }
+  for (const header of DATETIME_COLUMNS[tab] ?? []) {
+    if (col(header) > 0) sheet.getRange(2, col(header), dataRows, 1).setNumberFormat('yyyy-mm-dd hh:mm');
   }
   if (tab === 'items') {
     // 긴 원문·번역은 줄바꿈해서 보이게
@@ -85,7 +95,43 @@ function ensureTab(ss: GoogleAppsScript.Spreadsheet.Spreadsheet, tab: TabKey, in
   const guarded = sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE).some((p) => p.getDescription() === HEADER_GUARD);
   if (!guarded) sheet.getRange('1:1').protect().setDescription(HEADER_GUARD).setWarningOnly(true);
 
-  if (created) return `${name}: 탭 생성, 열 ${headers.length}개`;
-  if (added.length) return `${name}: 빠진 열 추가 — ${added.join(', ')}`;
-  return `${name}: 변경 없음`;
+  const notes: string[] = [];
+  if (created) notes.push(`탭 생성, 열 ${headers.length}개`);
+  else if (added.length) notes.push(`빠진 열 추가 — ${added.join(', ')}`);
+  if (cleanup.deleted) notes.push(`데이터 위쪽 빈 행 ${cleanup.deleted}개 정리`);
+  if (cleanup.clearedBelow) notes.push('데이터 아래 빈 행의 체크박스 규칙 정리');
+  return `${name}: ${notes.length ? notes.join(', ') : '변경 없음'}`;
+}
+
+/**
+ * 헤더와 데이터 사이의 완전히 빈 행을 지우고, 데이터 아래 빈 행에 남은 체크박스 규칙·FALSE 값을 지운다.
+ * (이전 버전 setup이 빈 행 전체에 체크박스 규칙을 걸어 데이터가 1001행부터 쌓인 경우의 복구 포함)
+ */
+function cleanUpRows(
+  sheet: GoogleAppsScript.Spreadsheet.Sheet,
+  headers: string[],
+  tab: TabKey,
+): { lastDataRow: number; deleted: number; clearedBelow: boolean } {
+  const last = sheet.getLastRow();
+  const keyIndex = headers.indexOf(KEY_COLUMN[tab]);
+  if (last < 2 || keyIndex < 0) return { lastDataRow: 1, deleted: 0, clearedBelow: false };
+  const values = sheet.getRange(2, 1, last - 1, headers.length).getValues();
+  const plan = planRowCleanup(values, keyIndex);
+  const deleted = deleteRowNumbers(sheet, plan.deleteRows);
+  const lastDataRow = plan.lastDataRow - deleted;
+
+  let clearedBelow = false;
+  const below = sheet.getMaxRows() - lastDataRow;
+  const checkboxCols = (CHECKBOX_COLUMNS[tab] ?? []).map((h) => headers.indexOf(h) + 1).filter((c) => c > 0);
+  if (below > 0 && checkboxCols.length) {
+    for (const c of checkboxCols) {
+      const range = sheet.getRange(lastDataRow + 1, c, below, 1);
+      // 빈 칸·FALSE만 있는 경우에만 지운다(사람이 적은 값은 남김)
+      if (range.getValues().every((r) => r[0] === '' || r[0] === false)) {
+        range.clearDataValidations().clearContent();
+        clearedBelow = true;
+      }
+    }
+  }
+  return { lastDataRow, deleted, clearedBelow };
 }

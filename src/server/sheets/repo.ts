@@ -1,9 +1,13 @@
 // 시트 읽기·쓰기. 열은 헤더 이름으로 찾는다(사람이 열 순서를 바꿔도 동작).
+// 마지막 행은 getLastRow()가 아니라 키 열로 판단한다 — 체크박스 규칙이 걸린 빈 칸은
+// 시트에서 FALSE 값으로 취급되어 getLastRow()가 실제 데이터보다 커진다.
 import { getConfig } from '../config';
 import {
+  CHECKBOX_COLUMNS,
   COLUMNS,
   fromRow,
   itemRecords,
+  KEY_COLUMN,
   TABS,
   toRow,
   versionRecord,
@@ -35,6 +39,16 @@ export function readHeaders(sheet: Sheet): string[] {
   return sheet.getRange(1, 1, 1, lastCol).getValues()[0]!.map((v) => String(v).trim());
 }
 
+/** 키 열이 채워진 마지막 행 번호(데이터가 없으면 1 = 헤더) */
+export function lastDataRow(sheet: Sheet, headers: string[], tab: TabKey): number {
+  const keyCol = headers.indexOf(KEY_COLUMN[tab]) + 1;
+  const last = sheet.getLastRow();
+  if (keyCol === 0 || last < 2) return Math.min(last, 1);
+  const keys = sheet.getRange(2, keyCol, last - 1, 1).getValues();
+  for (let i = keys.length - 1; i >= 0; i--) if (String(keys[i]![0]).trim()) return i + 2;
+  return 1;
+}
+
 export interface TableRow {
   /** 시트 행 번호(1부터, 헤더가 1) */
   rowNumber: number;
@@ -44,24 +58,30 @@ export interface TableRow {
 export function readTable(tab: TabKey): { sheet: Sheet; headers: string[]; rows: TableRow[] } {
   const sheet = getSheet(tab);
   const headers = readHeaders(sheet);
-  const lastRow = sheet.getLastRow();
-  if (lastRow < 2 || headers.length === 0) return { sheet, headers, rows: [] };
-  const values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  const last = lastDataRow(sheet, headers, tab);
+  if (last < 2 || headers.length === 0) return { sheet, headers, rows: [] };
+  const key = KEY_COLUMN[tab];
+  const values = sheet.getRange(2, 1, last - 1, headers.length).getValues();
   const rows = values
     .map((row, i) => ({ rowNumber: i + 2, record: fromRow(headers, row) }))
-    .filter((r) => Object.values(r.record).some((v) => v !== ''));
+    .filter((r) => String(r.record[key] ?? '').trim() !== '');
   return { sheet, headers, rows };
 }
 
-/** 여러 행을 한 번에 추가 (setValues 1회) */
+/** 여러 행을 한 번에 추가 (setValues 1회). 체크박스 열은 새로 쓴 행에만 규칙을 건다 */
 export function appendRecords(tab: TabKey, records: SheetRecord[]): void {
   if (records.length === 0) return;
   const sheet = getSheet(tab);
   const headers = readHeaders(sheet);
   const missing = COLUMNS[tab].filter((c) => !headers.includes(c));
   if (missing.length) throw new Error(`"${TABS[tab]}" 탭에 열이 없습니다: ${missing.join(', ')} — "초기 설정"을 다시 실행하세요.`);
+  const start = lastDataRow(sheet, headers, tab) + 1;
   const rows = records.map((r) => toRow(headers, r));
-  sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, headers.length).setValues(rows);
+  sheet.getRange(start, 1, rows.length, headers.length).setValues(rows);
+  const checkbox = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+  for (const header of CHECKBOX_COLUMNS[tab] ?? []) {
+    sheet.getRange(start, headers.indexOf(header) + 1, rows.length, 1).setDataValidation(checkbox);
+  }
 }
 
 /** 지정한 열만 고친다(다른 열 — 특히 사람이 고친 칸 — 은 건드리지 않음) */
@@ -78,7 +98,11 @@ export function updateCells(tab: TabKey, rowNumber: number, values: SheetRecord)
 /** 조건에 맞는 행 삭제. 연속 구간은 한 번에 지운다(아래에서 위로). 지운 행 수를 돌려준다 */
 export function deleteRows(tab: TabKey, match: (record: SheetRecord) => boolean): number {
   const { sheet, rows } = readTable(tab);
-  const targets = rows.filter((r) => match(r.record)).map((r) => r.rowNumber).sort((a, b) => b - a);
+  return deleteRowNumbers(sheet, rows.filter((r) => match(r.record)).map((r) => r.rowNumber));
+}
+
+export function deleteRowNumbers(sheet: Sheet, rowNumbers: number[]): number {
+  const targets = [...rowNumbers].sort((a, b) => b - a);
   let i = 0;
   while (i < targets.length) {
     const end = targets[i]!;

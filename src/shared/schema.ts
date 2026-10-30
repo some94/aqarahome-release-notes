@@ -47,6 +47,20 @@ export const HIDDEN_COLUMNS: Partial<Record<TabKey, readonly string[]>> = {
   items: ['기계 번역', '원문 언어'],
 };
 
+/** 행이 데이터인지 판단하는 열 — 이 열이 비어 있으면 빈 행으로 본다 */
+export const KEY_COLUMN: Record<TabKey, string> = {
+  versions: '버전',
+  items: '항목 ID',
+  glossary: '원어',
+  runs: '실행 시각',
+};
+
+/** 날짜·시각으로 표시할 열 */
+export const DATETIME_COLUMNS: Partial<Record<TabKey, readonly string[]>> = {
+  versions: ['등록 시각', '갱신 시각'],
+  runs: ['실행 시각'],
+};
+
 /** 체크박스로 표시할 열 */
 export const CHECKBOX_COLUMNS: Partial<Record<TabKey, readonly string[]>> = {
   items: ['내부용', '수정 여부'],
@@ -196,6 +210,28 @@ export function isEditedItem(record: SheetRecord): boolean {
 export function editedFlagAfterEdit(ko: unknown, machine: unknown): boolean {
   const k = String(ko ?? '').trim();
   return k !== '' && k !== String(machine ?? '').trim();
+}
+
+/** 아무것도 없는 행(빈 칸이거나 체크박스 규칙 때문에 생긴 FALSE뿐) */
+export function isBlankRow(row: readonly unknown[]): boolean {
+  return row.every((v) => v === '' || v === false || v === null || v === undefined);
+}
+
+/**
+ * 데이터 행 범위 정리 계획. values는 2행부터의 값(헤더 제외).
+ * 체크박스 규칙이 걸린 빈 행은 시트에서 FALSE 값으로 취급되어 getLastRow()를 늘리므로
+ * 마지막 데이터 행은 키 열로 판단한다.
+ * - lastDataRow: 키 열이 채워진 마지막 행 번호(없으면 1 = 헤더)
+ * - deleteRows: 헤더와 마지막 데이터 행 사이의 완전히 빈 행(사람이 뭔가 적은 행은 남김)
+ */
+export function planRowCleanup(values: readonly (readonly unknown[])[], keyIndex: number): { lastDataRow: number; deleteRows: number[] } {
+  let lastDataRow = 1;
+  values.forEach((row, i) => {
+    if (String(row[keyIndex] ?? '').trim()) lastDataRow = i + 2;
+  });
+  const deleteRows: number[] = [];
+  for (let r = 2; r < lastDataRow; r++) if (isBlankRow(values[r - 2]!)) deleteRows.push(r);
+  return { lastDataRow, deleteRows };
 }
 
 /** 헤더 행을 스키마에 맞춘다: 비어 있으면 전체, 빠진 열만 뒤에 추가. 기존 열은 지우거나 옮기지 않는다 */
