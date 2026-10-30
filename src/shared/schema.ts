@@ -119,9 +119,18 @@ export interface VersionInput {
   mailId: string;
   /** 이 블록이 들어 있던 메일의 수신일 */
   mailDate: string;
+  /** 메일 헤더 Message-ID — 수신자 모두에게 같은 값이라 다른 계정에서도 같은 메일을 찾을 수 있다 */
+  rfc822MessageId?: string;
 }
 
-export function gmailLink(messageId: string): string {
+/**
+ * 원본 메일 링크.
+ * - Message-ID가 있으면 Gmail 검색(rfc822msgid:) 링크 → 그 메일을 받은 계정이면 누구나 열림
+ * - 없으면 수집 계정 메일함의 메시지 ID 링크 → 수집 계정에서만 열림
+ */
+export function gmailLink(messageId: string, rfc822MessageId?: string): string {
+  const id = rfc822MessageId?.trim().replace(/^<|>$/g, '');
+  if (id) return `https://mail.google.com/mail/#search/${encodeURIComponent(`rfc822msgid:${id}`)}`;
   return `https://mail.google.com/mail/#all/${messageId}`;
 }
 
@@ -132,7 +141,7 @@ export function formatChannel(status?: ChannelStatus): string {
 
 /** 버전 탭 한 행. 처리 상태는 항상 '번역 대기'로 시작한다 (번역은 별도 단계) */
 export function versionRecord(input: VersionInput, now: Date): SheetRecord {
-  const { parsed, origin, mailId, mailDate } = input;
+  const { parsed, origin, mailId, mailDate, rfc822MessageId } = input;
   return {
     '버전': parsed.version,
     'Android/iOS 버전': parsed.appVersion ?? '',
@@ -146,7 +155,7 @@ export function versionRecord(input: VersionInput, now: Date): SheetRecord {
     '처리 상태': VERSION_STATUS.pending,
     '출처': origin === 'original' ? SOURCE.lumi : SOURCE.quote,
     '메일 제목': parsed.source.subject ?? '',
-    'Gmail 링크': gmailLink(mailId),
+    'Gmail 링크': gmailLink(mailId, rfc822MessageId),
     '항목 수': parsed.items.length,
     '경고': parsed.warnings.join('\n'),
     '등록 시각': now,

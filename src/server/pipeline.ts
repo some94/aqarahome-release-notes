@@ -4,7 +4,7 @@
 import { checkSubject, extractSubjectVersions, parseReleaseMail, selectVersions } from '../parser';
 import { getConfig } from './config';
 import { getBody, getMeta, gmailIso, listMessageIds } from './gmail';
-import { notifyChat, notifyOwner } from './notify';
+import { newVersionsMessage, notifyChat, notifyOwner } from './notify';
 import { appendRunLog, saveParsedVersion, storedVersions } from './sheets/repo';
 import { ClaudeConfigError } from './translate/claude';
 import { emptyProgress, translatePendingVersions, type TranslateProgress } from './translate/phase';
@@ -26,6 +26,7 @@ interface QueuedMail {
   id: string;
   receivedAt: number;
   subject: string;
+  rfc822Id?: string;
 }
 
 interface RunState {
@@ -133,7 +134,7 @@ function startRun(mode: RunMode): RunState {
       excluded.push(`${day(meta.receivedAt)} ${meta.subject} (${check.reason})`);
       continue;
     }
-    queue.push({ id, receivedAt: meta.receivedAt, subject: meta.subject });
+    queue.push({ id, receivedAt: meta.receivedAt, subject: meta.subject, rfc822Id: meta.rfc822Id });
   }
   // 오래된 메일부터 (SPEC 9)
   queue.sort((a, b) => a.receivedAt - b.receivedAt);
@@ -201,7 +202,7 @@ function collectMail(state: RunState, mail: QueuedMail, stored: Set<string>): vo
     const selection = selectVersions(candidates, stored, { defer: state.pendingOriginals });
     for (const s of selection.selected) {
       try {
-        saveParsedVersion(s);
+        saveParsedVersion({ ...s, rfc822MessageId: mail.rfc822Id });
         stored.add(s.parsed.version);
         state.stats.newVersions.push(`v${s.parsed.version}${s.origin === 'quote' ? '(인용본)' : ''}`);
       } catch (e) {
@@ -270,7 +271,7 @@ function finish(state: RunState): RunOutcome {
   // 알림 실패가 실행 결과를 덮지 않도록 따로 처리
   try {
     if (errors.length || t.reviewVersions.length) notifyOwner(`확인 필요 — 오류 ${errors.length}건, 검수 필요 ${t.reviewVersions.length}개`, [...summary, '', ...errors.slice(0, 30)]);
-    if (s.newVersions.length) notifyChat(`Aqara Home 새 릴리즈 노트: ${s.newVersions.join(', ')}`);
+    if (s.newVersions.length) notifyChat(newVersionsMessage(s.newVersions, t.reviewVersions));
   } catch (e) {
     summary.push(`알림 전송 실패: ${(e as Error).message}`);
   }

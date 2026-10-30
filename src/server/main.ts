@@ -7,6 +7,8 @@ import {
   collectNow,
   installTriggersMenu,
   previewBackfillMenu,
+  rebuildGmailLinksMenu,
+  chatTestMenu,
   reparseMenu,
   resetTestDataMenu,
   retranslateSelectedMenu,
@@ -49,7 +51,9 @@ export function installTriggers(): void {
 }
 
 export {
+  chatTestMenu,
   checkConfig,
+  rebuildGmailLinksMenu,
   collectNow,
   doGet,
   getViewerData,

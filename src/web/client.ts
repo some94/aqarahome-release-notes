@@ -205,7 +205,7 @@ function renderDetail(): void {
       ${fact('Google Play', escapeHtml(version.googlePlay))}
       ${fact('출처', escapeHtml(version.source))}
       ${fact('메일 제목', escapeHtml(version.subject))}
-      ${fact('원본 메일', version.gmailLink ? `<a href="${escapeHtml(version.gmailLink)}" target="_blank" rel="noopener">Gmail에서 열기</a> <span class="meta">(수집 계정 메일함 — 다른 계정에서는 열리지 않을 수 있음)</span>` : '')}
+      ${fact('원본 메일', version.gmailLink ? `<a href="${escapeHtml(version.gmailLink)}" target="_blank" rel="noopener">Gmail에서 열기</a> <span class="meta">(이 메일을 받은 계정에서만 열림 — 받지 않았다면 Gmail 검색 결과가 비어 있음)</span>` : '')}
     </dl>
     ${version.warnings ? `<div class="warnings">${escapeHtml(version.warnings)}</div>` : ''}
     ${hasActiveFilters(state.filters)

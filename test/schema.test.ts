@@ -4,6 +4,7 @@ import {
   COLUMNS,
   editedFlagAfterEdit,
   fromRow,
+  gmailLink,
   GLOSSARY_SEED,
   HIDDEN_COLUMNS,
   isBlankRow,
@@ -53,6 +54,24 @@ describe('버전 행', () => {
       'iOS 상태': '심사 제출 (2026-06-19)',
       '인용 깊이': 2,
     });
+  });
+});
+
+describe('Gmail 링크', () => {
+  it('Message-ID가 있으면 받은 사람 누구나 열 수 있는 검색 링크(꺾쇠 제거, 인코딩)', () => {
+    expect(gmailLink('abc123', '<CAJ+x.y=z@mail.gmail.com>')).toBe(
+      'https://mail.google.com/mail/#search/rfc822msgid%3ACAJ%2Bx.y%3Dz%40mail.gmail.com',
+    );
+  });
+  it('Message-ID가 없으면 수집 계정 메시지 ID 링크', () => {
+    expect(gmailLink('abc123')).toBe('https://mail.google.com/mail/#all/abc123');
+    expect(gmailLink('abc123', '  ')).toBe('https://mail.google.com/mail/#all/abc123');
+  });
+  it('버전 행에 반영', () => {
+    const v = parsed()[0]!;
+    const rec = versionRecord({ parsed: v, origin: 'original', mailId: 'abc123', mailDate: '2026-09-16T00:00:00Z', rfc822MessageId: '<m1@example.com>' }, new Date());
+    expect(rec['Gmail 링크']).toBe('https://mail.google.com/mail/#search/rfc822msgid%3Am1%40example.com');
+    expect(rec['Gmail 메시지 ID']).toBe('abc123');
   });
 });
 

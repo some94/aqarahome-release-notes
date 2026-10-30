@@ -4,6 +4,9 @@ import { describeCallStats, hasPendingRun, runPipeline, type RunOutcome } from '
 import { reparseVersion } from './reparse';
 import { resetTestData } from './reset';
 import { installTriggers } from './triggers';
+import { rebuildGmailLinks } from './links';
+import { newVersionsMessage, notifyChat } from './notify';
+import { compareVersions } from '../parser/version';
 import { setup } from './setup';
 import { getSpreadsheet, readTable } from './sheets/repo';
 import { emptyProgress, retranslateItems, translateVersion } from './translate/phase';
@@ -33,6 +36,8 @@ export function buildMenu(): void {
         .addItem('백필 미리보기(시트 기록 없음)', 'previewBackfillMenu')
         .addItem('백필 실행(전체 메일)…', 'runBackfillMenu')
         .addItem('저장된 버전 재파싱…', 'reparseMenu')
+        .addItem('Gmail 링크 다시 만들기', 'rebuildGmailLinksMenu')
+        .addItem('챗 알림 테스트', 'chatTestMenu')
         .addSeparator()
         .addItem('초기 설정(탭·헤더)', 'runSetup')
         .addItem('주간 자동 수집 설치·갱신', 'installTriggersMenu')
@@ -196,6 +201,28 @@ export function resetTestDataMenu(): void {
   const lines = ['초기화 완료', ...result.cleared, '', `백업: ${result.backupUrl}`];
   for (const line of lines) console.log(line);
   showReport('테스트 데이터 초기화', lines);
+}
+
+export function rebuildGmailLinksMenu(): void {
+  const result = withLock(() => rebuildGmailLinks());
+  if (result === null) return;
+  const lines = [
+    `Gmail 링크 ${result.updated}개 갱신(메일을 받은 계정이면 누구나 열리는 검색 링크)`,
+    ...result.failed.map((f) => `실패: ${f}`),
+  ];
+  SpreadsheetApp.getUi().alert('Gmail 링크 다시 만들기', lines.join('\n'), SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+/** 챗 웹훅 연결 확인: 가장 최근 버전으로 실제 알림과 같은 형식의 테스트 메시지를 보낸다 */
+export function chatTestMenu(): void {
+  const ui = SpreadsheetApp.getUi();
+  const latest = readTable('versions').rows.map((r) => String(r.record['버전']).trim()).sort((a, b) => compareVersions(b, a))[0];
+  try {
+    const sent = notifyChat(`[테스트] 알림 연결 확인\n${newVersionsMessage(latest ? [`v${latest}`] : [], [])}`);
+    ui.alert('챗 알림 테스트', sent ? '테스트 메시지를 보냈습니다. 챗 스페이스를 확인하세요.' : 'Script Properties에 CHAT_WEBHOOK_URL이 없습니다.', ui.ButtonSet.OK);
+  } catch (e) {
+    ui.alert('챗 알림 테스트 실패', (e as Error).message, ui.ButtonSet.OK);
+  }
 }
 
 export function installTriggersMenu(): void {

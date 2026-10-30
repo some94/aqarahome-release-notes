@@ -8,6 +8,8 @@ export interface MailMeta {
   /** 수신 시각(ms, Gmail internalDate) */
   receivedAt: number;
   from?: string;
+  /** 헤더 Message-ID(수신자 모두 같은 값) */
+  rfc822Id?: string;
 }
 
 export interface MailBody {
@@ -36,13 +38,14 @@ export function listMessageIds(query: string): string[] {
 
 /** 헤더(제목·발신·날짜)만 읽는다 — 본문은 열지 않음 */
 export function getMeta(id: string): MailMeta {
-  const msg = api().get('me', id, { format: 'metadata', metadataHeaders: ['Subject', 'From', 'Date'] });
+  const msg = api().get('me', id, { format: 'metadata', metadataHeaders: ['Subject', 'From', 'Date', 'Message-ID'] });
   const headers = msg.payload?.headers ?? [];
   return {
     id,
     subject: headerValue(headers, 'Subject') ?? '',
     receivedAt: Number(msg.internalDate ?? 0),
     from: headerValue(headers, 'From'),
+    rfc822Id: headerValue(headers, 'Message-ID') ?? headerValue(headers, 'Message-Id'),
   };
 }
 

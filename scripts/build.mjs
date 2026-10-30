@@ -3,6 +3,7 @@
 //   dist/index.html     웹 뷰어(CSS·JS 인라인)
 //   dist/appsscript.json 매니페스트(src/appsscript.json 복사)
 import { build } from 'esbuild';
+import { existsSync, readFileSync } from 'node:fs';
 import { copyFile, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,9 @@ const GLOBAL_NAME = 'App';
 // GAS V8 런타임에서 안전하게 쓰는 문법 수준
 const TARGET = 'es2019';
 const buildTime = new Date().toISOString();
+// 알림 메시지에 넣을 운영 웹앱 주소(배포 전이면 빈 문자열)
+const deployConfigPath = join(root, 'deploy.config.json');
+const viewerUrl = existsSync(deployConfigPath) ? (JSON.parse(readFileSync(deployConfigPath, 'utf8')).url ?? '') : '';
 
 async function buildServer() {
   // 1) ESM으로 한 번 번들해서 main.ts의 export 이름 목록을 얻는다(파일로 쓰지 않음)
@@ -38,7 +42,7 @@ async function buildServer() {
     globalName: GLOBAL_NAME,
     target: TARGET,
     charset: 'utf8',
-    define: { __BUILD_TIME__: JSON.stringify(buildTime) },
+    define: { __BUILD_TIME__: JSON.stringify(buildTime), __VIEWER_URL__: JSON.stringify(viewerUrl) },
     write: false,
     outfile: 'Code.js',
     logLevel: 'warning',

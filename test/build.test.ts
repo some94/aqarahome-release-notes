@@ -17,11 +17,14 @@ describe('빌드 결과', () => {
       'onOpen', 'onEdit', 'setup', 'runSetup', 'checkConfig', 'doGet', 'getViewerData',
       'collectNow', 'continueRun', 'previewBackfillMenu', 'runBackfillMenu', 'reparseMenu',
       'retranslateSelectedMenu', 'translateTestMenu', 'resetTestDataMenu',
-      'scheduledCollect', 'installTriggers', 'installTriggersMenu',
+      'scheduledCollect', 'installTriggers', 'installTriggersMenu', 'rebuildGmailLinksMenu', 'chatTestMenu',
     ]) {
       expect(code).toContain(`function ${name}() { return App.${name}.apply(this, arguments); }`);
     }
     expect(code).not.toContain('__BUILD_TIME__');
+    // 알림 메시지용 운영 웹앱 주소가 deploy.config.json에서 주입된다
+    expect(code).not.toContain('__VIEWER_URL__');
+    expect(code).toContain(JSON.parse(read('deploy.config.json')).url);
   });
 
   it('웹 뷰어는 CSS·JS가 인라인된 단일 HTML이다', () => {

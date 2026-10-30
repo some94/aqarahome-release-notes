@@ -42,7 +42,13 @@ export function reparseVersion(input: string): ReparseResult {
   // 새로 읽는 데 성공한 뒤에만 지운다
   const removedItems = deleteRows('items', (r) => String(r['버전']).trim() === version);
   deleteRows('versions', (r) => String(r['버전']).trim() === version);
-  saveParsedVersion({ parsed, origin: parsed.source.depth === 0 ? 'original' : 'quote', mailId, mailDate: gmailIso(meta.receivedAt) });
+  saveParsedVersion({
+    parsed,
+    origin: parsed.source.depth === 0 ? 'original' : 'quote',
+    mailId,
+    mailDate: gmailIso(meta.receivedAt),
+    rfc822MessageId: meta.rfc822Id,
+  });
   return {
     ok: true,
     message: `v${version} 재파싱 완료 — 항목 ${removedItems}개 → ${parsed.items.length}개, 처리 상태 "번역 대기"${parsed.warnings.length ? `\n⚠ ${parsed.warnings.join('\n⚠ ')}` : ''}`,
