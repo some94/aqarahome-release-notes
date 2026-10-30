@@ -2,6 +2,7 @@ import { previewBackfill } from './backfill';
 import { describeConfig } from './config';
 import { describeCallStats, hasPendingRun, runPipeline, type RunOutcome } from './pipeline';
 import { reparseVersion } from './reparse';
+import { resetTestData } from './reset';
 import { setup } from './setup';
 import { getSpreadsheet, readTable } from './sheets/repo';
 import { emptyProgress, retranslateItems, translateVersion } from './translate/phase';
@@ -32,7 +33,8 @@ export function buildMenu(): void {
         .addItem('백필 실행(전체 메일)…', 'runBackfillMenu')
         .addItem('저장된 버전 재파싱…', 'reparseMenu')
         .addSeparator()
-        .addItem('초기 설정(탭·헤더)', 'runSetup'),
+        .addItem('초기 설정(탭·헤더)', 'runSetup')
+        .addItem('테스트 데이터 초기화…', 'resetTestDataMenu'),
     )
     .addToUi();
 }
@@ -171,6 +173,27 @@ export function retranslateSelectedMenu(): void {
     '버전의 처리 상태는 바뀌지 않습니다. 검수가 끝났으면 버전 탭에서 "정상"으로 바꿔 주세요.',
   ].filter(Boolean);
   showReport('선택 항목 재번역', lines);
+}
+
+export function resetTestDataMenu(): void {
+  const ui = SpreadsheetApp.getUi();
+  const res = ui.prompt(
+    '테스트 데이터 초기화',
+    '버전·항목·실행 로그 탭의 데이터를 모두 지우고 진행 상태·마지막 처리 시점을 초기화합니다.\n' +
+      '용어집과 설정값(API 키 등)은 유지합니다. 지우기 전에 4개 탭을 새 스프레드시트로 백업합니다.\n\n' +
+      '계속하려면 아래에 "초기화"를 입력하세요.',
+    ui.ButtonSet.OK_CANCEL,
+  );
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  if (res.getResponseText().trim() !== '초기화') {
+    ui.alert('입력이 "초기화"와 달라 중단했습니다. 아무것도 지우지 않았습니다.');
+    return;
+  }
+  const result = withLock(() => resetTestData());
+  if (result === null) return;
+  const lines = ['초기화 완료', ...result.cleared, '', `백업: ${result.backupUrl}`];
+  for (const line of lines) console.log(line);
+  showReport('테스트 데이터 초기화', lines);
 }
 
 /** 메뉴용: setup() 실행 후 결과를 대화상자로 보여준다 */
