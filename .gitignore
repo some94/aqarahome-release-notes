@@ -12,6 +12,9 @@ dist/
 # 실제 릴리즈 메일 원문(internal use only) — 커밋 금지
 fixtures/private/
 
+# 사용 설명서 PDF — 실제 화면 캡처(내부용 내용 포함)라 저장소에 올리지 않음
+manual/
+
 # 커밋 메시지 초안 (커밋 성공 후 삭제, CLAUDE.md 커밋 규칙)
 commit-msg*.txt
 
