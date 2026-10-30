@@ -52,5 +52,8 @@
 - `npm run build` → `dist/` (Code.js + 최상위 함수 래퍼, index.html, appsscript.json)
 - `npm run typecheck` → 서버(`tsconfig.json`), 테스트(`test/tsconfig.json`, GAS 타입 없음 → 파서 순수성 강제), 웹(`src/web/tsconfig.json`, DOM)
 - `npm test` → vitest
-- `npm run push` → build + `clasp push`
+- `npm run push` → build + `clasp push` (`/dev` 테스트 URL에 바로 반영, 운영 URL은 그대로)
+- `npm run deploy` → 검사·push·버전 생성 후 `deploy.config.json`의 고정 배포 ID 갱신(운영 URL 불변). 운영 배포는 사용자 확인 후 실행
+- 명령을 이어 실행할 때 앞 단계(테스트 등)가 실패하면 멈추도록 `if ($LASTEXITCODE -eq 0) { … }`로 연결(`;`로 잇지 말 것)
+- 뷰어 데이터는 CacheService에 캐시됨 — 버전·항목 탭에 쓰는 코드는 `sheets/repo` 쓰기 함수를 거칠 것(캐시 자동 무효화). 직접 Range를 고치면 `invalidateViewerCache()` 호출
 - GAS에서 호출되는 함수(메뉴·트리거·`google.script.run`)는 반드시 `src/server/main.ts`에서 export (빌드가 같은 이름의 최상위 함수로 감쌈). `google.script.run`용은 `src/web/gas-client.d.ts`에도 추가
